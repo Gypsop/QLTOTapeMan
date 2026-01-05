@@ -5,6 +5,7 @@
 #include <QList>
 #include <QDateTime>
 #include <QVariant>
+#include <QMap>
 
 // Represents an extent (a chunk of data on tape)
 struct LtfsExtent {
@@ -26,6 +27,9 @@ struct LtfsFile {
     QDateTime accessTime;
     QDateTime backupTime;
     QString sha1; // Hash
+    QMap<QString, QString> extendedAttributes; // xattr key-value pairs
+    quint64 fileUid;
+    bool openForWrite;
     QList<LtfsExtent> extents; // List of extents
     
     // Helper to get the first block (for sorting)
@@ -44,6 +48,8 @@ struct LtfsDirectory {
     QDateTime accessTime;
     QDateTime backupTime;
     bool readonly;
+    QMap<QString, QString> extendedAttributes;
+    quint64 fileUid;
     
     QList<LtfsFile> files;
     QList<LtfsDirectory> subdirectories;
@@ -57,6 +63,8 @@ struct LtfsIndex {
     QDateTime updateTime;
     QString locationPartition;
     quint64 locationStartBlock;
+    QString volumeLockState;
+    quint64 highestFileUid;
     
     LtfsDirectory rootDirectory;
 };

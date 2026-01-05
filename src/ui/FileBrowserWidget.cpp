@@ -57,6 +57,7 @@ void FileBrowserWidget::populateTree(const LtfsDirectory &dir, QTreeWidgetItem *
         item->setText(0, file.name);
         item->setText(1, formatSize(file.length));
         item->setText(2, file.modifyTime.toString("yyyy-MM-dd HH:mm:ss"));
+        item->setText(3, file.sha1); // SHA1 column
         item->setIcon(0, style()->standardIcon(QStyle::SP_FileIcon));
         item->setData(0, Qt::UserRole, "file");
     }

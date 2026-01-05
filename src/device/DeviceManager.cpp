@@ -315,24 +315,29 @@ bool DeviceManager::sendScsiCommandWindows(const QString &devicePath, const std:
         return false;
     }
 
-    SCSI_PASS_THROUGH_DIRECT sptd;
-    ZeroMemory(&sptd, sizeof(SCSI_PASS_THROUGH_DIRECT));
+    struct SCSI_PASS_THROUGH_DIRECT_WITH_BUFFER {
+        SCSI_PASS_THROUGH_DIRECT sptd;
+        ULONG             Filler;      // Realignment
+        UCHAR             ucSenseBuf[32];
+    } swb;
 
-    sptd.Length = sizeof(SCSI_PASS_THROUGH_DIRECT);
-    sptd.PathId = 0;
-    sptd.TargetId = 1;
-    sptd.Lun = 0;
-    sptd.CdbLength = static_cast<UCHAR>(cdb.size());
-    sptd.SenseInfoLength = 24;
-    sptd.DataIn = (direction == ScsiDirection::In) ? SCSI_IOCTL_DATA_IN : 
+    ZeroMemory(&swb, sizeof(swb));
+
+    swb.sptd.Length = sizeof(SCSI_PASS_THROUGH_DIRECT);
+    swb.sptd.PathId = 0;
+    swb.sptd.TargetId = 1;
+    swb.sptd.Lun = 0;
+    swb.sptd.CdbLength = static_cast<UCHAR>(cdb.size());
+    swb.sptd.SenseInfoLength = sizeof(swb.ucSenseBuf);
+    swb.sptd.DataIn = (direction == ScsiDirection::In) ? SCSI_IOCTL_DATA_IN : 
                   (direction == ScsiDirection::Out) ? SCSI_IOCTL_DATA_OUT : SCSI_IOCTL_DATA_UNSPECIFIED;
-    sptd.DataTransferLength = static_cast<ULONG>(data.size());
-    sptd.TimeOutValue = timeout;
-    sptd.DataBuffer = data.data();
-    sptd.SenseInfoOffset = offsetof(SCSI_PASS_THROUGH_DIRECT, SenseInfo);
+    swb.sptd.DataTransferLength = static_cast<ULONG>(data.size());
+    swb.sptd.TimeOutValue = timeout;
+    swb.sptd.DataBuffer = data.data();
+    swb.sptd.SenseInfoOffset = offsetof(SCSI_PASS_THROUGH_DIRECT_WITH_BUFFER, ucSenseBuf);
     
     if (cdb.size() <= 16) {
-        memcpy(sptd.Cdb, cdb.data(), cdb.size());
+        memcpy(swb.sptd.Cdb, cdb.data(), cdb.size());
     } else {
         CloseHandle(hDevice);
         return false;
@@ -341,10 +346,10 @@ bool DeviceManager::sendScsiCommandWindows(const QString &devicePath, const std:
     DWORD bytesReturned;
     BOOL result = DeviceIoControl(hDevice,
                                 IOCTL_SCSI_PASS_THROUGH_DIRECT,
-                                &sptd,
-                                sizeof(SCSI_PASS_THROUGH_DIRECT),
-                                &sptd,
-                                sizeof(SCSI_PASS_THROUGH_DIRECT),
+                                &swb,
+                                sizeof(swb),
+                                &swb,
+                                sizeof(swb),
                                 &bytesReturned,
                                 NULL);
 

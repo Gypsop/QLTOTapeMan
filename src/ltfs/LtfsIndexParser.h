@@ -20,6 +20,7 @@ private:
     void readDirectory(QXmlStreamReader &xml, LtfsDirectory &directory);
     void readFile(QXmlStreamReader &xml, LtfsFile &file);
     void readExtent(QXmlStreamReader &xml, LtfsExtent &extent);
+    void readXattr(QXmlStreamReader &xml, QMap<QString, QString> &attributes);
     
     QString m_errorString;
 };

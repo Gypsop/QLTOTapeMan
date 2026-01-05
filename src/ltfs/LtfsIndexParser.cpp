@@ -81,6 +81,8 @@ void LtfsIndexParser::readDirectory(QXmlStreamReader &xml, LtfsDirectory &direct
             LtfsDirectory subDir;
             readDirectory(xml, subDir);
             directory.subdirectories.append(subDir);
+        } else if (xml.name() == QStringLiteral("xattr")) {
+            readXattr(xml, directory.extendedAttributes);
         } else {
             xml.skipCurrentElement();
         }
@@ -105,10 +107,10 @@ void LtfsIndexParser::readFile(QXmlStreamReader &xml, LtfsFile &file)
             readExtent(xml, extent);
             file.extents.append(extent);
         } else if (xml.name() == QStringLiteral("xattr")) {
-            // Check for hash
-            // <xattr key="user.ltfs.hash.sha1" value="..."/>
-            // Simplified parsing for now
-            xml.skipCurrentElement();
+            readXattr(xml, file.extendedAttributes);
+            if (file.extendedAttributes.contains("user.ltfs.hash.sha1")) {
+                file.sha1 = file.extendedAttributes["user.ltfs.hash.sha1"];
+            }
         } else {
             xml.skipCurrentElement();
         }
@@ -130,4 +132,24 @@ void LtfsIndexParser::readExtent(QXmlStreamReader &xml, LtfsExtent &extent)
             extent.fileOffset = attr.value().toULongLong();
     }
     xml.skipCurrentElement(); // Extent has no children
+}
+
+void LtfsIndexParser::readXattr(QXmlStreamReader &xml, QMap<QString, QString> &attributes)
+{
+    QString key;
+    QString value;
+    
+    while (xml.readNextStartElement()) {
+        if (xml.name() == QStringLiteral("key")) {
+            key = xml.readElementText();
+        } else if (xml.name() == QStringLiteral("value")) {
+            value = xml.readElementText();
+        } else {
+            xml.skipCurrentElement();
+        }
+    }
+    
+    if (!key.isEmpty()) {
+        attributes.insert(key, value);
+    }
 }
