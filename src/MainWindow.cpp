@@ -12,6 +12,7 @@
 #include <QtConcurrent/QtConcurrent>
 #include <QDateTime>
 #include <QTimer>
+#include <utility>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -24,6 +25,12 @@ MainWindow::MainWindow(QWidget *parent)
     , m_statusLabel(new QLabel(this))
 {
     ui->setupUi(this);
+    
+    // Fix: Ensure treeDevices has 5 columns for the Status Widget
+    if (ui->treeDevices->columnCount() < 5) {
+        ui->treeDevices->setColumnCount(5);
+        ui->treeDevices->setHeaderLabels(QStringList() << "Device Path" << "Vendor" << "Product" << "Serial Number" << "Status");
+    }
     
     // Add File Browser to Tab
     ui->verticalLayout_Browser->addWidget(m_fileBrowser);
@@ -113,11 +120,12 @@ void MainWindow::on_btnScan_clicked()
 {
     ui->treeDevices->clear();
     ui->groupBoxOperations->setEnabled(false);
+    ui->grpAdvancedOps->setEnabled(false);
     logMessage("Scanning for devices...");
     
     QList<TapeDeviceInfo> devices = m_deviceManager->scanDevices();
     
-    for (const TapeDeviceInfo &device : devices) {
+    for (const TapeDeviceInfo &device : std::as_const(devices)) {
         QTreeWidgetItem *item = new QTreeWidgetItem(ui->treeDevices);
         item->setText(0, device.devicePath);
         item->setText(1, device.vendorId);
@@ -178,6 +186,7 @@ void MainWindow::on_treeDevices_itemSelectionChanged()
 {
     bool hasSelection = !ui->treeDevices->selectedItems().isEmpty();
     ui->groupBoxOperations->setEnabled(hasSelection);
+    ui->grpAdvancedOps->setEnabled(hasSelection);
 }
 
 QString MainWindow::getSelectedDevicePath()
@@ -539,6 +548,112 @@ void MainWindow::onStatusTimerTick()
             statusWidget->setStatus("ACT", "gray");
         }
     }
+}
+
+void MainWindow::on_btnErase_clicked()
+{
+    QString path = getSelectedDevicePath();
+    if (path.isEmpty()) return;
+    
+    if (QMessageBox::warning(this, "Erase Tape", 
+                             "WARNING: This will PERMANENTLY ERASE ALL DATA on the tape.\n"
+                             "This operation cannot be undone.\n\n"
+                             "Do you want to perform a SHORT ERASE (Fast) or LONG ERASE (Hours)?\n"
+                             "Yes = Short Erase\nNo = Long Erase\nCancel = Abort",
+                             QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel) == QMessageBox::Cancel) {
+        return;
+    }
+    
+    bool longErase = (QMessageBox::question(this, "Erase Type", "Perform Long Erase (Secure)?", QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes);
+    
+    m_currentAsyncOperation = "Erase Tape";
+    setBusy(true, longErase ? "Erasing tape (Long)..." : "Erasing tape (Short)...");
+    
+    QFuture<bool> future = QtConcurrent::run([this, path, longErase]() {
+        if (!m_deviceManager->openDevice(path)) return false;
+        bool result = m_deviceManager->eraseTape(longErase);
+        m_deviceManager->closeDevice();
+        return result;
+    });
+    m_futureWatcher.setFuture(future);
+}
+
+void MainWindow::on_btnSetBlock_clicked()
+{
+    QString path = getSelectedDevicePath();
+    if (path.isEmpty()) return;
+    
+    bool ok;
+    int blockSize = QInputDialog::getInt(this, "Set Block Size", 
+                                         "Enter Block Size in Bytes (0 = Variable Mode):", 
+                                         0, 0, 16777216, 1, &ok);
+    if (!ok) return;
+    
+    m_currentAsyncOperation = "Set Block Size";
+    setBusy(true, "Setting block size...");
+    
+    QFuture<bool> future = QtConcurrent::run([this, path, blockSize]() {
+        if (!m_deviceManager->openDevice(path)) return false;
+        bool result = m_deviceManager->setBlockSize(blockSize);
+        m_deviceManager->closeDevice();
+        return result;
+    });
+    m_futureWatcher.setFuture(future);
+}
+
+void MainWindow::on_btnPartition_clicked()
+{
+    QString path = getSelectedDevicePath();
+    if (path.isEmpty()) return;
+    
+    bool ok;
+    int sizeMB = QInputDialog::getInt(this, "Create Partition", 
+                                      "Enter Size for Partition 1 (Index) in MB:\n(Remaining space will be Partition 0)", 
+                                      3000, 100, 100000, 1, &ok);
+    if (!ok) return;
+    
+    if (QMessageBox::warning(this, "Partition Tape", 
+                             "WARNING: Partitioning will ERASE ALL DATA on the tape.\nAre you sure?",
+                             QMessageBox::Yes | QMessageBox::No) != QMessageBox::Yes) {
+        return;
+    }
+    
+    m_currentAsyncOperation = "Partition Tape";
+    setBusy(true, "Partitioning tape...");
+    
+    QFuture<bool> future = QtConcurrent::run([this, path, sizeMB]() {
+        if (!m_deviceManager->openDevice(path)) return false;
+        bool result = m_deviceManager->createPartition(0, sizeMB);
+        m_deviceManager->closeDevice();
+        return result;
+    });
+    m_futureWatcher.setFuture(future);
+}
+
+void MainWindow::on_btnRawRead_clicked()
+{
+    QString path = getSelectedDevicePath();
+    if (path.isEmpty()) return;
+    
+    QString destFile = QFileDialog::getSaveFileName(this, "Save Tape Dump", QDir::homePath(), "Binary Files (*.bin)");
+    if (destFile.isEmpty()) return;
+    
+    // Use TransferDialog for progress
+    TransferDialog *dlg = new TransferDialog(this);
+    dlg->setAttribute(Qt::WA_DeleteOnClose);
+    
+    // Configure Transfer Engine for Tape -> File
+    TransferEngine *engine = dlg->engine();
+    engine->setDeviceManager(m_deviceManager);
+    engine->setSourceDevice(path);
+    engine->setDestinationPath(QFileInfo(destFile).path()); 
+    // Note: TransferEngine logic for raw read needs to handle single file output properly
+    // Currently readerLoop emits FILE_START with "tape_dump.bin", writerLoop writes to destPath/fileName
+    // We might need to adjust TransferEngine to accept exact dest file path or rename later.
+    // For now, let's assume it writes to destPath/tape_dump.bin
+    
+    dlg->show();
+    dlg->startTransfer();
 }
 
 

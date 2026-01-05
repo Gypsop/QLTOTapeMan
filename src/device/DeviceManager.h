@@ -83,13 +83,56 @@ public:
     bool isDeviceReady(const QString &devicePath);
     bool rewindDevice(const QString &devicePath);
     bool unloadDevice(const QString &devicePath);
+    bool loadDevice(const QString &devicePath);
+    bool setMediaRemovalPrevention(const QString &devicePath, bool prevent);
     
     // Block I/O Operations (Requires openDevice)
-    bool writeScsiBlock(const QByteArray &data);
-    QByteArray readScsiBlock(uint32_t length);
+    bool setBlockSize(uint32_t blockSize); // 0 = Variable Block Mode
+    
+    struct ScsiWriteResult {
+        bool isEOM = false; // Early Warning EOM
+        bool isError = false;
+        QString errorMessage;
+    };
+    ScsiWriteResult writeScsiBlock(const QByteArray &data);
+    bool synchronizeCache();
+    
+    struct ScsiReadResult {
+        QByteArray data;
+        bool isFileMark = false;
+        bool isEOM = false; // End of Medium (Physical End)
+        bool isEOD = false; // End of Data (Blank Check)
+        bool isError = false;
+        QString errorMessage;
+    };
+    ScsiReadResult readScsiBlock(uint32_t length);
+    
+    struct BlockLimits {
+        uint32_t maxBlockLength = 0;
+        uint16_t minBlockLength = 0;
+        bool valid = false;
+    };
+    BlockLimits readBlockLimits();
+
+    struct TapePosition {
+        uint32_t partition = 0;
+        uint64_t blockNumber = 0;
+        bool bop = false; // Beginning of Partition
+        bool eop = false; // End of Partition
+        bool valid = false;
+    };
+    TapePosition readPosition();
+
     bool writeFileMark(uint8_t count = 1);
-    bool space(int32_t count, uint8_t code); // code: 0=Blocks, 1=FileMarks
-    bool locate(uint32_t blockAddress);
+    bool writeSetMark(uint8_t count = 1);
+    bool eraseTape(bool longErase = false);
+    bool createPartition(uint8_t method, uint16_t sizeMB); // method: 0=IDP, 1=Wrap, 2=Size
+    bool space(int32_t count, uint8_t code); // code: 0=Blocks, 1=FileMarks, 3=End of Data, 4=Setmarks
+    bool locate(uint64_t blockAddress, uint32_t partition = 0);
+    
+    // MAM & Logs
+    QByteArray getMAMAttribute(const QString &devicePath, uint16_t attributeId);
+    bool setMAMAttribute(const QString &devicePath, uint16_t attributeId, const QByteArray &value);
 
 signals:
     void deviceListChanged(const QList<TapeDeviceInfo> &devices);

@@ -13,8 +13,16 @@
 class TransferDialog : public QDialog {
     Q_OBJECT
 public:
+    // Constructor for File -> Tape/File
     TransferDialog(const QStringList& files, const QString& dest, DeviceManager* deviceManager = nullptr, QWidget* parent = nullptr);
+    
+    // Constructor for Tape -> File (Raw Read)
+    explicit TransferDialog(QWidget* parent = nullptr);
+    
     ~TransferDialog();
+    
+    TransferEngine* engine() const { return m_engine; }
+    void startTransfer();
 
 private slots:
     void onProgress(quint64 bytes, quint64 total, double speed);
@@ -32,4 +40,7 @@ private:
     QTextEdit* m_logView;
     QPushButton* m_cancelButton;
     QPushButton* m_closeButton;
+    
+    void setupUI();
+    void setupConnections();
 };

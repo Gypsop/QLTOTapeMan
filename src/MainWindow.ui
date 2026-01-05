@@ -118,6 +118,46 @@
          </widget>
         </item>
         <item>
+         <widget class="QGroupBox" name="grpAdvancedOps">
+          <property name="title">
+           <string>Advanced Operations</string>
+          </property>
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <layout class="QHBoxLayout" name="horizontalLayout_Adv">
+           <item>
+            <widget class="QPushButton" name="btnErase">
+             <property name="text">
+              <string>Erase Tape</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="btnSetBlock">
+             <property name="text">
+              <string>Set Block Size</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="btnPartition">
+             <property name="text">
+              <string>Partition</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="btnRawRead">
+             <property name="text">
+              <string>Raw Read to File</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
          <widget class="QGroupBox" name="groupBoxLog">
           <property name="title">
            <string>Operation Log</string>

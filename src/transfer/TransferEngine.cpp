@@ -26,10 +26,19 @@ TransferEngine::~TransferEngine()
 void TransferEngine::setSourceFiles(const QStringList& files)
 {
     m_sourceFiles = files;
+    m_sourceDevice.clear(); // Clear device source if files are set
     m_totalBytes = 0;
     for (const QString& f : files) {
         m_totalBytes += QFileInfo(f).size();
     }
+}
+
+void TransferEngine::setSourceDevice(const QString& devicePath)
+{
+    m_sourceDevice = devicePath;
+    m_sourceFiles.clear(); // Clear file source if device is set
+    // Total bytes unknown for raw tape read usually, or we can estimate
+    m_totalBytes = 0; 
 }
 
 void TransferEngine::setDestinationPath(const QString& path)
@@ -69,6 +78,92 @@ void TransferEngine::stop()
 
 void TransferEngine::readerLoop()
 {
+    // Check if reading from tape
+    if (!m_sourceDevice.isEmpty() && m_deviceManager) {
+        if (!m_deviceManager->openDevice(m_sourceDevice)) {
+            emit errorOccurred("Failed to open source tape device: " + m_sourceDevice);
+            m_buffer->setFinished();
+            return;
+        }
+        
+        // Raw Tape Read Logic
+        // We treat the tape content as a sequence of files separated by Filemarks
+        
+        int fileIndex = 0;
+        
+        while (!m_abort) {
+            QString fileName = QString("tape_dump_%1.bin").arg(fileIndex, 3, 10, QChar('0'));
+            
+            // 1. Send FILE_START
+            TransferBlock* startBlock = m_buffer->acquireEmptyBlock();
+            startBlock->type = TransferBlock::FILE_START;
+            startBlock->fileName = fileName;
+            startBlock->fileSize = 0; // Unknown
+            m_buffer->pushFilledBlock(startBlock);
+            
+            QCryptographicHash hash(QCryptographicHash::Sha1);
+            bool fileMarkEncountered = false;
+            
+            // Read loop for current file
+            while (!m_abort) {
+                TransferBlock* dataBlock = m_buffer->acquireEmptyBlock();
+                
+                // Read from tape
+                DeviceManager::ScsiReadResult result = m_deviceManager->readScsiBlock(m_buffer->blockSize());
+                
+                if (result.isError) {
+                    m_buffer->releaseBlock(dataBlock);
+                    emit errorOccurred("Tape Read Error: " + result.errorMessage);
+                    m_abort = true;
+                    break;
+                }
+                
+                if (result.isFileMark) {
+                    m_buffer->releaseBlock(dataBlock);
+                    fileMarkEncountered = true;
+                    break; // End of this file
+                }
+                
+                if (result.isEOD || result.isEOM) {
+                    m_buffer->releaseBlock(dataBlock);
+                    m_abort = true; // End of all data
+                    break;
+                }
+                
+                if (result.data.isEmpty()) {
+                    // Should not happen if no error/FM/EOD, but just in case
+                    m_buffer->releaseBlock(dataBlock);
+                    break;
+                }
+                
+                // Copy data to buffer
+                memcpy(dataBlock->buffer.data(), result.data.constData(), result.data.size());
+                dataBlock->type = TransferBlock::DATA;
+                dataBlock->validSize = result.data.size();
+                
+                hash.addData(QByteArrayView(dataBlock->buffer.data(), result.data.size()));
+                m_buffer->pushFilledBlock(dataBlock);
+            }
+            
+            // 3. Send FILE_END
+            TransferBlock* endBlock = m_buffer->acquireEmptyBlock();
+            endBlock->type = TransferBlock::FILE_END;
+            endBlock->fileName = fileName;
+            endBlock->checksum = QString(hash.result().toHex());
+            m_buffer->pushFilledBlock(endBlock);
+            
+            if (!fileMarkEncountered || m_abort) {
+                break;
+            }
+            
+            fileIndex++;
+        }
+        
+        m_buffer->setFinished();
+        return;
+    }
+
+    // File Reader Logic
     for (const QString& filePath : m_sourceFiles) {
         if (m_abort) break;
 
@@ -101,7 +196,7 @@ void TransferEngine::readerLoop()
                 dataBlock->validSize = bytesRead;
                 
                 // Update Hash
-                hash.addData((const char*)dataBlock->buffer.data(), bytesRead);
+                hash.addData(QByteArrayView(dataBlock->buffer.data(), bytesRead));
                 
                 m_buffer->pushFilledBlock(dataBlock);
             } else {
@@ -175,9 +270,15 @@ void TransferEngine::writerLoop()
                 if (m_deviceManager->isDeviceOpen()) {
                     // Write to tape
                     QByteArray data((const char*)block->buffer.data(), block->validSize);
-                    success = m_deviceManager->writeScsiBlock(data);
-                    if (!success) {
-                         emit errorOccurred("Write error on tape device");
+                    DeviceManager::ScsiWriteResult result = m_deviceManager->writeScsiBlock(data);
+                    success = !result.isError;
+                    
+                    if (result.isEOM) {
+                        emit errorOccurred("End of Media reached during write");
+                        m_abort = true;
+                        success = false;
+                    } else if (result.isError) {
+                         emit errorOccurred("Write error on tape device: " + result.errorMessage);
                          m_abort = true;
                     }
                 }
@@ -228,6 +329,9 @@ void TransferEngine::writerLoop()
     }
     
     if (toTape) {
+        if (m_deviceManager->isDeviceOpen()) {
+            m_deviceManager->synchronizeCache();
+        }
         m_deviceManager->closeDevice();
     } else {
         if (destFile.isOpen()) destFile.close();

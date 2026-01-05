@@ -51,6 +51,12 @@ private slots:
     void on_tabWidget_currentChanged(int index);
     
     void onFilesDropped(const QStringList &files);
+    
+    // Advanced Operations
+    void on_btnErase_clicked();
+    void on_btnSetBlock_clicked();
+    void on_btnPartition_clicked();
+    void on_btnRawRead_clicked();
 
 private:
     Ui::MainWindow *ui;

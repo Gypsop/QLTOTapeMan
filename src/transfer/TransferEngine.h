@@ -15,6 +15,7 @@ public:
 
     // Configure the transfer
     void setSourceFiles(const QStringList& files);
+    void setSourceDevice(const QString& devicePath); // For tape-to-file
     void setDestinationPath(const QString& path); // Legacy, for file-to-file
     void setDestinationDevice(const QString& devicePath); // For tape
     void setDeviceManager(DeviceManager* deviceManager);
@@ -48,6 +49,7 @@ private:
     void writerLoop();
 
     QStringList m_sourceFiles;
+    QString m_sourceDevice; // New: Source device path
     QString m_destPath;
     QString m_destDevice;
     DeviceManager* m_deviceManager = nullptr;

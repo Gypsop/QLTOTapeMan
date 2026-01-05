@@ -4,6 +4,34 @@
 TransferDialog::TransferDialog(const QStringList& files, const QString& dest, DeviceManager* deviceManager, QWidget* parent)
     : QDialog(parent)
 {
+    setupUI();
+
+    // Setup Engine
+    m_engine = new TransferEngine(this);
+    m_engine->setSourceFiles(files);
+    
+    if (deviceManager) {
+        m_engine->setDeviceManager(deviceManager);
+        m_engine->setDestinationDevice(dest);
+        setWindowTitle("Writing to Tape (" + dest + ")");
+    } else {
+        m_engine->setDestinationPath(dest);
+    }
+    
+    setupConnections();
+    startTransfer();
+}
+
+TransferDialog::TransferDialog(QWidget* parent)
+    : QDialog(parent)
+{
+    setupUI();
+    m_engine = new TransferEngine(this);
+    setupConnections();
+}
+
+void TransferDialog::setupUI()
+{
     setWindowTitle("File Transfer");
     resize(600, 400);
 
@@ -35,26 +63,19 @@ TransferDialog::TransferDialog(const QStringList& files, const QString& dest, De
 
     connect(m_cancelButton, &QPushButton::clicked, this, &TransferDialog::onCancel);
     connect(m_closeButton, &QPushButton::clicked, this, &TransferDialog::accept);
+}
 
-    // Setup Engine
-    m_engine = new TransferEngine(this);
-    m_engine->setSourceFiles(files);
-    
-    if (deviceManager) {
-        m_engine->setDeviceManager(deviceManager);
-        m_engine->setDestinationDevice(dest);
-        setWindowTitle("Writing to Tape (" + dest + ")");
-    } else {
-        m_engine->setDestinationPath(dest);
-    }
-
+void TransferDialog::setupConnections()
+{
     connect(m_engine, &TransferEngine::progress, this, &TransferDialog::onProgress);
     connect(m_engine, &TransferEngine::fileStarted, this, &TransferDialog::onFileStarted);
     connect(m_engine, &TransferEngine::fileFinished, this, &TransferDialog::onFileFinished);
     connect(m_engine, &TransferEngine::errorOccurred, this, &TransferDialog::onError);
     connect(m_engine, &TransferEngine::finished, this, &TransferDialog::onFinished);
+}
 
-    // Start automatically
+void TransferDialog::startTransfer()
+{
     m_engine->start();
 }
 

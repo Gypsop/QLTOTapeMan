@@ -15,6 +15,8 @@
 #define SCSIOP_MODE_SENSE_6     0x1A
 #define SCSIOP_MODE_SELECT_6    0x15
 #define SCSIOP_START_STOP_UNIT  0x1B
+#define SCSIOP_READ_BLOCK_LIMITS 0x05
+#define SCSIOP_READ_POSITION    0x34
 
 // SCSI Status Codes
 #define SCSISTAT_GOOD           0x00
@@ -62,6 +64,25 @@ struct ScsiInquiryData {
     char ProductRevisionLevel[4];
     char VendorSpecific[20];
     uint8_t Reserved5[40];
+};
+
+struct ScsiSenseData {
+    uint8_t ResponseCode; // 0x70 or 0x71. Bit 7 is Valid.
+    uint8_t SegmentNumber;
+    uint8_t Flags; // Bit 7=FileMark, 6=EOM, 5=ILI, 3-0=SenseKey
+    uint8_t Information[4];
+    uint8_t AdditionalSenseLength;
+    uint8_t CommandSpecificInformation[4];
+    uint8_t ASC;
+    uint8_t ASCQ;
+    uint8_t FieldReplaceableUnitCode;
+    uint8_t SenseKeySpecific[3];
+    
+    bool isValid() const { return (ResponseCode & 0x80) != 0; }
+    bool isFileMark() const { return (Flags & 0x80) != 0; }
+    bool isEOM() const { return (Flags & 0x40) != 0; }
+    bool isILI() const { return (Flags & 0x20) != 0; }
+    uint8_t senseKey() const { return Flags & 0x0F; }
 };
 #pragma pack(pop)
 

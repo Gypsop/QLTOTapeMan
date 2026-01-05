@@ -4,6 +4,7 @@
 #include <QFile>
 #include <QDir>
 #include <QDebug>
+#include <utility>
 
 IndexManager::IndexManager(QObject *parent) : QObject(parent)
 {
@@ -48,7 +49,7 @@ QStringList IndexManager::listAvailableIndexes() const
     QStringList files = dir.entryList(filters, QDir::Files);
     
     QStringList uuids;
-    for (const QString &file : files) {
+    for (const QString &file : std::as_const(files)) {
         uuids << QFileInfo(file).baseName();
     }
     return uuids;
