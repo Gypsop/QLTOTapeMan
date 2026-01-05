@@ -20,12 +20,14 @@ void SettingsDialog::loadSettings()
 {
     ui->lineEditLtfs->setText(SettingsManager::instance().ltfsBinaryPath());
     ui->lineEditMkltfs->setText(SettingsManager::instance().mkltfsBinaryPath());
+    ui->lineEditLtfsck->setText(SettingsManager::instance().ltfsckBinaryPath());
 }
 
 void SettingsDialog::saveSettings()
 {
     SettingsManager::instance().setLtfsBinaryPath(ui->lineEditLtfs->text());
     SettingsManager::instance().setMkltfsBinaryPath(ui->lineEditMkltfs->text());
+    SettingsManager::instance().setLtfsckBinaryPath(ui->lineEditLtfsck->text());
 }
 
 void SettingsDialog::on_btnBrowseLtfs_clicked()
@@ -41,6 +43,14 @@ void SettingsDialog::on_btnBrowseMkltfs_clicked()
     QString path = QFileDialog::getOpenFileName(this, "Select mkltfs Binary");
     if (!path.isEmpty()) {
         ui->lineEditMkltfs->setText(path);
+    }
+}
+
+void SettingsDialog::on_btnBrowseLtfsck_clicked()
+{
+    QString path = QFileDialog::getOpenFileName(this, "Select ltfsck Binary");
+    if (!path.isEmpty()) {
+        ui->lineEditLtfsck->setText(path);
     }
 }
 

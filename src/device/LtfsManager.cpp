@@ -50,11 +50,31 @@ void LtfsManager::format(const QString &devicePath, const QString &volumeName)
     QStringList args;
     
 #ifdef Q_OS_WIN
-    args << "-d" << devicePath << "-n" << volumeName;
+    // Windows: mkltfs -d <device> -n <name> --wipe
+    // Note: --wipe forces formatting even if LTFS exists
+    args << "-d" << devicePath << "-n" << volumeName << "--wipe";
 #else
+    // Linux/Mac: mkltfs -d <device> -n <name> --wipe
+    args << "-d" << devicePath << "-n" << volumeName << "--wipe";
 #endif
 
     runProcess(program, args, "Format");
+}
+
+void LtfsManager::check(const QString &devicePath, bool deepRecovery)
+{
+    QString program = SettingsManager::instance().ltfsckBinaryPath();
+    if (program.isEmpty()) program = "ltfsck";
+    
+    QStringList args;
+    
+    if (deepRecovery) {
+        args << "--deep-recovery";
+    }
+    
+    args << devicePath;
+
+    runProcess(program, args, "Check/Recover");
 }
 
 void LtfsManager::runProcess(const QString &program, const QStringList &arguments, const QString &opName)

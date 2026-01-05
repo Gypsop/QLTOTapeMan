@@ -230,6 +230,26 @@ void MainWindow::on_btnFormat_clicked()
     m_ltfsManager->format(path, volumeName);
 }
 
+void MainWindow::on_btnCheck_clicked()
+{
+    QString path = getSelectedDevicePath();
+    if (path.isEmpty()) return;
+    
+    QMessageBox::StandardButton reply;
+    reply = QMessageBox::question(this, "Check/Recover Tape", 
+                                  "Do you want to perform a Deep Recovery?\n"
+                                  "Deep Recovery scans the entire tape and takes a long time.\n"
+                                  "Select 'No' for a standard consistency check.",
+                                  QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel);
+    
+    if (reply == QMessageBox::Cancel) return;
+    
+    bool deep = (reply == QMessageBox::Yes);
+    
+    setBusy(true, deep ? "Recovering tape (Deep Scan)..." : "Checking tape consistency...");
+    m_ltfsManager->check(path, deep);
+}
+
 void MainWindow::on_btnMount_clicked()
 {
     QString path = getSelectedDevicePath();

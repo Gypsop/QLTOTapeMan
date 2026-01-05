@@ -30,6 +30,7 @@ private slots:
     void on_btnRewind_clicked();
     void on_btnEject_clicked();
     void on_btnFormat_clicked();
+    void on_btnCheck_clicked(); // Restore/Check
     void on_btnMount_clicked();
     void on_btnUnmount_clicked();
 

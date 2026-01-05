@@ -94,6 +94,13 @@
             </widget>
            </item>
            <item>
+            <widget class="QPushButton" name="btnCheck">
+             <property name="text">
+              <string>Restore/Check</string>
+             </property>
+            </widget>
+           </item>
+           <item>
             <widget class="QPushButton" name="btnMount">
              <property name="text">
               <string>Mount</string>

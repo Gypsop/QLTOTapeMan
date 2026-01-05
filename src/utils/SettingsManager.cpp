@@ -46,6 +46,16 @@ void SettingsManager::setMkltfsBinaryPath(const QString &path)
     m_settings.setValue("mkltfsBinaryPath", path);
 }
 
+QString SettingsManager::ltfsckBinaryPath() const
+{
+    return m_settings.value("ltfsckBinaryPath").toString();
+}
+
+void SettingsManager::setLtfsckBinaryPath(const QString &path)
+{
+    m_settings.setValue("ltfsckBinaryPath", path);
+}
+
 QString SettingsManager::indexStoragePath() const
 {
     // Store indexes in the application directory for portability, or UserData
@@ -59,10 +69,12 @@ void SettingsManager::autoDetectLtfsPaths()
     QStringList searchPaths;
     QString ltfsName = "ltfs";
     QString mkltfsName = "mkltfs";
+    QString ltfsckName = "ltfsck";
 
 #ifdef Q_OS_WIN
     ltfsName += ".exe";
     mkltfsName += ".exe";
+    ltfsckName += ".exe";
     searchPaths << "C:/Program Files/HPE/LTFS"
                 << "C:/Program Files/IBM/LTFS"
                 << "C:/Program Files/Quantum/LTFS"
@@ -93,6 +105,15 @@ void SettingsManager::autoDetectLtfsPaths()
         }
     }
     
+    // Search for ltfsck
+    for (const QString &path : searchPaths) {
+        QString fullPath = path + "/" + ltfsckName;
+        if (QFileInfo::exists(fullPath)) {
+            setLtfsckBinaryPath(fullPath);
+            break;
+        }
+    }
+    
     // Fallback: Check system PATH
     if (ltfsBinaryPath().isEmpty()) {
         QString path = QStandardPaths::findExecutable(ltfsName);
@@ -101,5 +122,9 @@ void SettingsManager::autoDetectLtfsPaths()
     if (mkltfsBinaryPath().isEmpty()) {
         QString path = QStandardPaths::findExecutable(mkltfsName);
         if (!path.isEmpty()) setMkltfsBinaryPath(path);
+    }
+    if (ltfsckBinaryPath().isEmpty()) {
+        QString path = QStandardPaths::findExecutable(ltfsckName);
+        if (!path.isEmpty()) setLtfsckBinaryPath(path);
     }
 }

@@ -18,6 +18,9 @@ public:
     QString mkltfsBinaryPath() const;
     void setMkltfsBinaryPath(const QString &path);
 
+    QString ltfsckBinaryPath() const;
+    void setLtfsckBinaryPath(const QString &path);
+
     QString indexStoragePath() const;
     
     // Attempt to auto-detect LTFS binaries

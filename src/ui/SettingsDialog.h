@@ -18,6 +18,7 @@ public:
 private slots:
     void on_btnBrowseLtfs_clicked();
     void on_btnBrowseMkltfs_clicked();
+    void on_btnBrowseLtfsck_clicked();
     void on_buttonBox_accepted();
 
 private:

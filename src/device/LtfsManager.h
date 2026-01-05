@@ -23,6 +23,9 @@ public:
     // Format tape (mkltfs)
     void format(const QString &devicePath, const QString &volumeName);
 
+    // Check/Recover tape (ltfsck)
+    void check(const QString &devicePath, bool deepRecovery = false);
+
 signals:
     void operationStarted(const QString &operation);
     void operationFinished(const QString &operation, bool success, const QString &message);
