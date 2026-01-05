@@ -58,11 +58,11 @@
         </item>
         <item>
          <widget class="QGroupBox" name="groupBoxOperations">
-          <property name="title">
-           <string>Tape Operations</string>
-          </property>
           <property name="enabled">
            <bool>false</bool>
+          </property>
+          <property name="title">
+           <string>Tape Operations</string>
           </property>
           <layout class="QHBoxLayout" name="horizontalLayout">
            <item>
@@ -119,11 +119,11 @@
         </item>
         <item>
          <widget class="QGroupBox" name="grpAdvancedOps">
-          <property name="title">
-           <string>Advanced Operations</string>
-          </property>
           <property name="enabled">
            <bool>false</bool>
+          </property>
+          <property name="title">
+           <string>Advanced Operations</string>
           </property>
           <layout class="QHBoxLayout" name="horizontalLayout_Adv">
            <item>
@@ -191,7 +191,7 @@
      <x>0</x>
      <y>0</y>
      <width>800</width>
-     <height>24</height>
+     <height>30</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">

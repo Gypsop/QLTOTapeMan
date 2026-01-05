@@ -32,6 +32,9 @@ MainWindow::MainWindow(QWidget *parent)
         ui->treeDevices->setHeaderLabels(QStringList() << "Device Path" << "Vendor" << "Product" << "Serial Number" << "Status");
     }
     
+    // Ensure the last column is wide enough for the LEDs
+    ui->treeDevices->setColumnWidth(4, 300);
+    
     // Add File Browser to Tab
     ui->verticalLayout_Browser->addWidget(m_fileBrowser);
     
@@ -236,7 +239,17 @@ void MainWindow::onStatusRetrieved()
 void MainWindow::on_btnRewind_clicked()
 {
     QString path = getSelectedDevicePath();
-    if (path.isEmpty()) return;
+    if (path.isEmpty()) {
+        QMessageBox::warning(this, "No Device Selected", "Please select a tape device first.");
+        return;
+    }
+    
+    // Pre-check: Device Status
+    TapeStatus status = m_deviceManager->getDeviceStatus(path);
+    if (!status.isLoaded) {
+        QMessageBox::warning(this, "No Tape Loaded", "Please load a tape before rewinding.");
+        return;
+    }
     
     m_currentAsyncOperation = "Rewind";
     setBusy(true, "Rewinding tape...");
@@ -250,7 +263,10 @@ void MainWindow::on_btnRewind_clicked()
 void MainWindow::on_btnEject_clicked()
 {
     QString path = getSelectedDevicePath();
-    if (path.isEmpty()) return;
+    if (path.isEmpty()) {
+        QMessageBox::warning(this, "No Device Selected", "Please select a tape device first.");
+        return;
+    }
     
     if (QMessageBox::question(this, "Confirm Eject", "Are you sure you want to eject the tape?") != QMessageBox::Yes) {
         return;
@@ -356,7 +372,17 @@ void MainWindow::on_btnCheck_clicked()
 void MainWindow::on_btnMount_clicked()
 {
     QString path = getSelectedDevicePath();
-    if (path.isEmpty()) return;
+    if (path.isEmpty()) {
+        QMessageBox::warning(this, "No Device Selected", "Please select a tape device first.");
+        return;
+    }
+    
+    // Pre-check: Device Status
+    TapeStatus status = m_deviceManager->getDeviceStatus(path);
+    if (!status.isLoaded) {
+        QMessageBox::warning(this, "No Tape Loaded", "Please load a tape before mounting.");
+        return;
+    }
     
     // Store Serial
     QTreeWidgetItem *item = ui->treeDevices->currentItem();
@@ -566,7 +592,21 @@ void MainWindow::onStatusTimerTick()
 void MainWindow::on_btnErase_clicked()
 {
     QString path = getSelectedDevicePath();
-    if (path.isEmpty()) return;
+    if (path.isEmpty()) {
+        QMessageBox::warning(this, "No Device Selected", "Please select a tape device first.");
+        return;
+    }
+    
+    // Pre-check: Device Status
+    TapeStatus status = m_deviceManager->getDeviceStatus(path);
+    if (!status.isLoaded) {
+        QMessageBox::warning(this, "No Tape Loaded", "Please load a tape before erasing.");
+        return;
+    }
+    if (status.isWriteProtected) {
+        QMessageBox::warning(this, "Write Protected", "The tape is write-protected. Cannot erase.");
+        return;
+    }
     
     if (QMessageBox::warning(this, "Erase Tape", 
                              "WARNING: This will PERMANENTLY ERASE ALL DATA on the tape.\n"
@@ -594,7 +634,17 @@ void MainWindow::on_btnErase_clicked()
 void MainWindow::on_btnSetBlock_clicked()
 {
     QString path = getSelectedDevicePath();
-    if (path.isEmpty()) return;
+    if (path.isEmpty()) {
+        QMessageBox::warning(this, "No Device Selected", "Please select a tape device first.");
+        return;
+    }
+    
+    // Pre-check: Device Status
+    TapeStatus status = m_deviceManager->getDeviceStatus(path);
+    if (!status.isLoaded) {
+        QMessageBox::warning(this, "No Tape Loaded", "Please load a tape before setting block size.");
+        return;
+    }
     
     bool ok;
     int blockSize = QInputDialog::getInt(this, "Set Block Size", 
@@ -617,7 +667,21 @@ void MainWindow::on_btnSetBlock_clicked()
 void MainWindow::on_btnPartition_clicked()
 {
     QString path = getSelectedDevicePath();
-    if (path.isEmpty()) return;
+    if (path.isEmpty()) {
+        QMessageBox::warning(this, "No Device Selected", "Please select a tape device first.");
+        return;
+    }
+    
+    // Pre-check: Device Status
+    TapeStatus status = m_deviceManager->getDeviceStatus(path);
+    if (!status.isLoaded) {
+        QMessageBox::warning(this, "No Tape Loaded", "Please load a tape before partitioning.");
+        return;
+    }
+    if (status.isWriteProtected) {
+        QMessageBox::warning(this, "Write Protected", "The tape is write-protected. Cannot partition.");
+        return;
+    }
     
     bool ok;
     int sizeMB = QInputDialog::getInt(this, "Create Partition", 
@@ -646,7 +710,17 @@ void MainWindow::on_btnPartition_clicked()
 void MainWindow::on_btnRawRead_clicked()
 {
     QString path = getSelectedDevicePath();
-    if (path.isEmpty()) return;
+    if (path.isEmpty()) {
+        QMessageBox::warning(this, "No Device Selected", "Please select a tape device first.");
+        return;
+    }
+    
+    // Pre-check: Device Status
+    TapeStatus status = m_deviceManager->getDeviceStatus(path);
+    if (!status.isLoaded) {
+        QMessageBox::warning(this, "No Tape Loaded", "Please load a tape before reading.");
+        return;
+    }
     
     QString destFile = QFileDialog::getSaveFileName(this, "Save Tape Dump", QDir::homePath(), "Binary Files (*.bin)");
     if (destFile.isEmpty()) return;
