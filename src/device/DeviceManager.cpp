@@ -104,48 +104,29 @@ QList<TapeDeviceInfo> DeviceManager::scanDevicesWindows()
     QList<TapeDeviceInfo> devices;
 #ifdef Q_OS_WIN
     // GUID for Tape Drives: {6D802884-7D00-11D0-9908-00A0C92542E3}
-    // Note: The reference project used GUID_DEVINTERFACE_DISK, but for Tape Drives specifically, 
-    // GUID_DEVINTERFACE_TAPE is usually more appropriate. However, LTFS might treat them as disks 
-    // if a driver is loaded. Let's try the standard Tape GUID first, or check both.
-    // GUID_DEVINTERFACE_TAPE is defined in ntddtape.h or we can define it manually.
-    
     static const GUID GUID_DEVINTERFACE_TAPE = { 0x6D802884, 0x7D00, 0x11D0, { 0x99, 0x08, 0x00, 0xA0, 0xC9, 0x25, 0x42, 0xE3 } };
 
     HDEVINFO hDevInfo = SetupDiGetClassDevs(&GUID_DEVINTERFACE_TAPE, NULL, NULL, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
     
-    if (hDevInfo == INVALID_HANDLE_VALUE) {
-        qWarning() << "SetupDiGetClassDevs failed";
-        return devices;
-    }
+    if (hDevInfo != INVALID_HANDLE_VALUE) {
+        SP_DEVICE_INTERFACE_DATA devInterfaceData;
+        devInterfaceData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
 
-    SP_DEVICE_INTERFACE_DATA devInterfaceData;
-    devInterfaceData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
+        for (DWORD i = 0; SetupDiEnumDeviceInterfaces(hDevInfo, NULL, &GUID_DEVINTERFACE_TAPE, i, &devInterfaceData); ++i) {
+            DWORD requiredSize = 0;
+            SetupDiGetDeviceInterfaceDetail(hDevInfo, &devInterfaceData, NULL, 0, &requiredSize, NULL);
 
-    for (DWORD i = 0; SetupDiEnumDeviceInterfaces(hDevInfo, NULL, &GUID_DEVINTERFACE_TAPE, i, &devInterfaceData); ++i) {
-        DWORD requiredSize = 0;
-        SetupDiGetDeviceInterfaceDetail(hDevInfo, &devInterfaceData, NULL, 0, &requiredSize, NULL);
+            if (GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
+                continue;
+            }
 
-        if (GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
-            continue;
-        }
+            PSP_DEVICE_INTERFACE_DETAIL_DATA devDetailData = (PSP_DEVICE_INTERFACE_DETAIL_DATA)malloc(requiredSize);
+            devDetailData->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA);
 
-        PSP_DEVICE_INTERFACE_DETAIL_DATA devDetailData = (PSP_DEVICE_INTERFACE_DETAIL_DATA)malloc(requiredSize);
-        devDetailData->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA);
-
-        if (SetupDiGetDeviceInterfaceDetail(hDevInfo, &devInterfaceData, devDetailData, requiredSize, NULL, NULL)) {
-            QString devicePath = QString::fromWCharArray(devDetailData->DevicePath);
-            
-            // Open device to get inquiry data
-            HANDLE hDevice = CreateFile(devDetailData->DevicePath, 
-                                      GENERIC_READ | GENERIC_WRITE, 
-                                      FILE_SHARE_READ | FILE_SHARE_WRITE, 
-                                      NULL, 
-                                      OPEN_EXISTING, 
-                                      0, 
-                                      NULL);
-
-            if (hDevice != INVALID_HANDLE_VALUE) {
-                // Perform SCSI Inquiry here
+            if (SetupDiGetDeviceInterfaceDetail(hDevInfo, &devInterfaceData, devDetailData, requiredSize, NULL, NULL)) {
+                QString devicePath = QString::fromWCharArray(devDetailData->DevicePath);
+                
+                // Perform SCSI Inquiry
                 std::vector<uint8_t> cdb(6);
                 cdb[0] = SCSIOP_INQUIRY;
                 cdb[4] = sizeof(ScsiInquiryData);
@@ -160,7 +141,7 @@ QList<TapeDeviceInfo> DeviceManager::scanDevicesWindows()
                     info.vendorId = QString::fromLatin1(inq->VendorId, 8).trimmed();
                     info.productId = QString::fromLatin1(inq->ProductId, 16).trimmed();
                     info.productRevision = QString::fromLatin1(inq->ProductRevisionLevel, 4).trimmed();
-                    info.serialNumber = "Unknown"; // Default
+                    info.serialNumber = "Unknown";
                     
                     // Get Serial Number (Page 0x80)
                     std::vector<uint8_t> cdbSerial(6);
@@ -179,13 +160,67 @@ QList<TapeDeviceInfo> DeviceManager::scanDevicesWindows()
                     
                     devices.append(info);
                 }
-                CloseHandle(hDevice);
+            }
+            free(devDetailData);
+        }
+        SetupDiDestroyDeviceInfoList(hDevInfo);
+    }
+    
+    // Fallback: Legacy Tape Scan (\\.\Tape0 to \\.\Tape9)
+    // Some drivers do not expose the standard Tape Interface GUID, but still map to TapeX.
+    if (devices.isEmpty()) {
+        for (int i = 0; i < 10; ++i) {
+            QString tapePath = QString("\\\\.\\Tape%1").arg(i);
+            
+            // Check if device exists by attempting to open it
+            HANDLE hDevice = CreateFile(reinterpret_cast<LPCWSTR>(tapePath.utf16()), 
+                                      GENERIC_READ | GENERIC_WRITE, 
+                                      FILE_SHARE_READ | FILE_SHARE_WRITE, 
+                                      NULL, 
+                                      OPEN_EXISTING, 
+                                      0, 
+                                      NULL);
+            
+            if (hDevice != INVALID_HANDLE_VALUE) {
+                CloseHandle(hDevice); 
+                
+                // Perform Inquiry
+                std::vector<uint8_t> cdb(6);
+                cdb[0] = SCSIOP_INQUIRY;
+                cdb[4] = sizeof(ScsiInquiryData);
+                
+                std::vector<uint8_t> data(sizeof(ScsiInquiryData));
+                
+                if (sendScsiCommand(tapePath, cdb, ScsiDirection::In, data)) {
+                    ScsiInquiryData *inq = reinterpret_cast<ScsiInquiryData*>(data.data());
+                    
+                    TapeDeviceInfo info;
+                    info.devicePath = tapePath;
+                    info.vendorId = QString::fromLatin1(inq->VendorId, 8).trimmed();
+                    info.productId = QString::fromLatin1(inq->ProductId, 16).trimmed();
+                    info.productRevision = QString::fromLatin1(inq->ProductRevisionLevel, 4).trimmed();
+                    info.serialNumber = "Unknown";
+                    
+                    // Get Serial Number (Page 0x80)
+                    std::vector<uint8_t> cdbSerial(6);
+                    cdbSerial[0] = SCSIOP_INQUIRY;
+                    cdbSerial[1] = 1; // EVPD
+                    cdbSerial[2] = 0x80; // Page Code
+                    cdbSerial[4] = 255; // Allocation Length
+                    
+                    std::vector<uint8_t> dataSerial(255);
+                    if (sendScsiCommand(tapePath, cdbSerial, ScsiDirection::In, dataSerial)) {
+                         int pageLen = dataSerial[3];
+                         if (pageLen > 0) {
+                             info.serialNumber = QString::fromLatin1((const char*)&dataSerial[4], pageLen).trimmed();
+                         }
+                    }
+                    
+                    devices.append(info);
+                }
             }
         }
-        free(devDetailData);
     }
-
-    SetupDiDestroyDeviceInfoList(hDevInfo);
 #endif
     return devices;
 }
@@ -325,7 +360,7 @@ bool DeviceManager::sendScsiCommandWindows(const QString &devicePath, const std:
 
     swb.sptd.Length = sizeof(SCSI_PASS_THROUGH_DIRECT);
     swb.sptd.PathId = 0;
-    swb.sptd.TargetId = 1;
+    swb.sptd.TargetId = 0;
     swb.sptd.Lun = 0;
     swb.sptd.CdbLength = static_cast<UCHAR>(cdb.size());
     swb.sptd.SenseInfoLength = sizeof(swb.ucSenseBuf);
@@ -352,6 +387,10 @@ bool DeviceManager::sendScsiCommandWindows(const QString &devicePath, const std:
                                 sizeof(swb),
                                 &bytesReturned,
                                 NULL);
+
+    if (!result) {
+        qDebug() << "DeviceIoControl failed. Error:" << GetLastError();
+    }
 
     CloseHandle(hDevice);
     return result != 0;
