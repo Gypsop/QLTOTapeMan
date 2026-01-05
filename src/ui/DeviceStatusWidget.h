@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QLabel>
 #include <QHBoxLayout>
+#include <QMap>
 
 class DeviceStatusWidget : public QWidget
 {
@@ -21,9 +22,13 @@ private:
     QLabel *m_ledTapeStatus;
     QLabel *m_ledDriveStatus;
     QLabel *m_ledActivity;
+    
+    QLabel *m_infoLabel;
+    QMap<QString, QString> m_statusMessages;
 
     void setupLed(QLabel *label, const QString &text);
     void setLedStyle(QLabel *label, const QString &color, const QString &text, const QString &textColor);
+    void updateInfoLabel();
 };
 
 #endif // DEVICESTATUSWIDGET_H
