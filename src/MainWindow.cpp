@@ -35,6 +35,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_ltfsManager, &LtfsManager::outputReceived, this, &MainWindow::onLtfsOutputReceived);
     
     connect(&m_futureWatcher, &QFutureWatcher<bool>::finished, this, &MainWindow::onAsyncOperationFinished);
+    connect(&m_statusWatcher, &QFutureWatcher<TapeStatus>::finished, this, &MainWindow::onStatusRetrieved);
     
     connect(m_fileBrowser, &FileBrowserWidget::filesDropped, this, &MainWindow::onFilesDropped);
 }
@@ -101,18 +102,28 @@ QString MainWindow::getSelectedDevicePath()
     return items.first()->text(0);
 }
 
+#include "ui/DeviceStatusDialog.h"
+
 void MainWindow::on_btnStatus_clicked()
 {
     QString path = getSelectedDevicePath();
     if (path.isEmpty()) return;
     
-    m_currentAsyncOperation = "Check Status";
     setBusy(true, "Checking device status...");
     
-    QFuture<bool> future = QtConcurrent::run([this, path]() {
-        return m_deviceManager->isDeviceReady(path);
+    QFuture<TapeStatus> future = QtConcurrent::run([this, path]() {
+        return m_deviceManager->getDeviceStatus(path);
     });
-    m_futureWatcher.setFuture(future);
+    m_statusWatcher.setFuture(future);
+}
+
+void MainWindow::onStatusRetrieved()
+{
+    setBusy(false);
+    TapeStatus status = m_statusWatcher.result();
+    
+    DeviceStatusDialog dialog(status, this);
+    dialog.exec();
 }
 
 void MainWindow::on_btnRewind_clicked()

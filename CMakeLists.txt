@@ -40,6 +40,8 @@ set(PROJECT_SOURCES
     src/transfer/TransferEngine.h
     src/ui/TransferDialog.cpp
     src/ui/TransferDialog.h
+    src/ui/DeviceStatusDialog.cpp
+    src/ui/DeviceStatusDialog.h
 )
 
 if(WIN32)

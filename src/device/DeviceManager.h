@@ -22,6 +22,28 @@ struct TapeDeviceInfo {
     }
 };
 
+struct TapeStatus {
+    bool isReady = false;
+    bool isLoaded = false;
+    bool isWriteProtected = false;
+    bool needsCleaning = false;
+    
+    // Position
+    uint32_t currentPartition = 0;
+    uint64_t currentBlock = 0;
+    
+    uint64_t capacityBytes = 0;
+    uint64_t remainingBytes = 0;
+    uint32_t blockSize = 0;
+    uint32_t partitionCount = 0;
+    
+    // Drive Capabilities
+    bool compressionEnabled = false;
+    uint32_t maxBlockSize = 0;
+    
+    QString statusMessage; // Human readable status
+};
+
 class DeviceManager : public QObject
 {
     Q_OBJECT
@@ -42,6 +64,8 @@ public:
     bool openDevice(const QString &devicePath);
     void closeDevice();
     bool isDeviceOpen() const;
+
+    TapeStatus getDeviceStatus(const QString &devicePath); // High-level status check
 
     bool isDeviceReady(const QString &devicePath);
     bool rewindDevice(const QString &devicePath);

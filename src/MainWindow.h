@@ -38,6 +38,7 @@ private slots:
     
     // Async slots
     void onAsyncOperationFinished();
+    void onStatusRetrieved();
 
     // Menu slots
     void on_actionSettings_triggered();
@@ -61,6 +62,7 @@ private:
     
     // Async Watcher
     QFutureWatcher<bool> m_futureWatcher;
+    QFutureWatcher<TapeStatus> m_statusWatcher;
     
     QString m_currentMountSerial;
     QString m_currentMountPoint;

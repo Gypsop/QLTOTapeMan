@@ -80,6 +80,78 @@ bool DeviceManager::isDeviceOpen() const
 #endif
 }
 
+TapeStatus DeviceManager::getDeviceStatus(const QString &devicePath)
+{
+    TapeStatus status;
+    status.statusMessage = "Unknown";
+
+#ifdef Q_OS_WIN
+    HANDLE hDevice = CreateFile(reinterpret_cast<LPCWSTR>(devicePath.utf16()), 
+                              GENERIC_READ, // Read access for status
+                              FILE_SHARE_READ | FILE_SHARE_WRITE, 
+                              NULL, 
+                              OPEN_EXISTING, 
+                              0, 
+                              NULL);
+
+    if (hDevice == INVALID_HANDLE_VALUE) {
+        status.statusMessage = "Failed to open device";
+        return status;
+    }
+
+    // 1. Get Tape Status
+    DWORD tapeStatus = GetTapeStatus(hDevice);
+    status.isReady = (tapeStatus == NO_ERROR);
+    
+    switch (tapeStatus) {
+        case NO_ERROR: status.statusMessage = "Ready"; status.isLoaded = true; break;
+        case ERROR_NO_MEDIA_IN_DRIVE: status.statusMessage = "No Media"; status.isLoaded = false; break;
+        case ERROR_BUS_RESET: status.statusMessage = "Bus Reset"; break;
+        case ERROR_END_OF_MEDIA: status.statusMessage = "End of Media"; status.isLoaded = true; break;
+        case ERROR_BEGINNING_OF_MEDIA: status.statusMessage = "Beginning of Media"; status.isLoaded = true; break;
+        case ERROR_WRITE_PROTECT: status.statusMessage = "Write Protected"; status.isWriteProtected = true; status.isLoaded = true; break;
+        case ERROR_DEVICE_REQUIRES_CLEANING: status.statusMessage = "Cleaning Required"; status.needsCleaning = true; status.isLoaded = true; break;
+        case ERROR_MEDIA_CHANGED: status.statusMessage = "Media Changed"; status.isLoaded = true; break;
+        case ERROR_DEVICE_NOT_PARTITIONED: status.statusMessage = "Not Partitioned"; status.isLoaded = true; break;
+        default: status.statusMessage = QString("Error: %1").arg(tapeStatus); break;
+    }
+
+    // 2. Get Media Parameters (if loaded)
+    if (status.isLoaded) {
+        TAPE_GET_MEDIA_PARAMETERS mediaParams;
+        DWORD size = sizeof(mediaParams);
+        if (GetTapeParameters(hDevice, GET_TAPE_MEDIA_INFORMATION, &size, &mediaParams) == NO_ERROR) {
+            status.capacityBytes = mediaParams.Capacity.QuadPart;
+            status.remainingBytes = mediaParams.Remaining.QuadPart;
+            status.blockSize = mediaParams.BlockSize;
+            status.partitionCount = mediaParams.PartitionCount;
+            status.isWriteProtected = mediaParams.WriteProtected;
+        }
+        
+        // Get Position
+        DWORD partition = 0;
+        DWORD offsetLow = 0;
+        DWORD offsetHigh = 0;
+        if (GetTapePosition(hDevice, TAPE_ABSOLUTE_POSITION, &partition, &offsetLow, &offsetHigh) == NO_ERROR) {
+            status.currentPartition = partition;
+            status.currentBlock = ((uint64_t)offsetHigh << 32) | offsetLow;
+        }
+    }
+
+    // 3. Get Drive Parameters
+    TAPE_GET_DRIVE_PARAMETERS driveParams;
+    DWORD size = sizeof(driveParams);
+    if (GetTapeParameters(hDevice, GET_TAPE_DRIVE_INFORMATION, &size, &driveParams) == NO_ERROR) {
+        status.compressionEnabled = driveParams.Compression;
+        status.maxBlockSize = driveParams.MaximumBlockSize;
+    }
+
+    CloseHandle(hDevice);
+#endif
+
+    return status;
+}
+
 bool DeviceManager::writeScsiBlock(const QByteArray &data)
 {
     if (!isDeviceOpen()) return false;
