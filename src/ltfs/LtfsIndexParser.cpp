@@ -69,7 +69,6 @@ void LtfsIndexParser::readDirectory(QXmlStreamReader &xml, LtfsDirectory &direct
     foreach(const QXmlStreamAttribute &attr, xml.attributes()) {
         if (attr.name() == QStringLiteral("name"))
             directory.name = attr.value().toString();
-        // ... other attributes
     }
 
     while (xml.readNextStartElement()) {
@@ -98,7 +97,6 @@ void LtfsIndexParser::readFile(QXmlStreamReader &xml, LtfsFile &file)
             file.length = attr.value().toULongLong();
         else if (attr.name() == QStringLiteral("readonly"))
             file.readonly = (attr.value() == QStringLiteral("true"));
-        // ... timestamps
     }
 
     while (xml.readNextStartElement()) {

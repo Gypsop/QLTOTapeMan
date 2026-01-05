@@ -79,6 +79,7 @@ public:
 
     TapeStatus getDeviceStatus(const QString &devicePath); // High-level status check
     VHFLogData getVHFLogPage(const QString &devicePath); // Get Very High Frequency Log Page (0x11)
+    uint64_t readTapeAlerts(const QString &devicePath); // Get TapeAlert Log Page (0x2E)
 
     bool isDeviceReady(const QString &devicePath);
     bool rewindDevice(const QString &devicePath);

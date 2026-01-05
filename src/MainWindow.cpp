@@ -137,30 +137,39 @@ void MainWindow::on_btnScan_clicked()
         
         // Fetch and display initial status
         TapeStatus status = m_deviceManager->getDeviceStatus(device.devicePath);
+        VHFLogData vhf = m_deviceManager->getVHFLogPage(device.devicePath);
+        uint64_t alerts = m_deviceManager->readTapeAlerts(device.devicePath);
         
-        // TAPE: Loaded/Empty
-        if (status.isLoaded) {
+        // TAPE: Loaded/Empty + Error Check
+        bool tapeError = (alerts & ((1ULL << 3) | (1ULL << 4) | (1ULL << 5) | (1ULL << 6))); // Flags 4,5,6,7 (Media Errors)
+        if (tapeError) {
+            statusWidget->setStatus("TAPE", "#F44336", "ERR"); // Red
+        } else if (status.isLoaded || vhf.mediaPresent) {
             statusWidget->setStatus("TAPE", "#4CAF50", "LOADED"); // Green
         } else {
             statusWidget->setStatus("TAPE", "#9E9E9E", "EMPTY"); // Gray
         }
         
         // CLN: Cleaning
-        if (status.needsCleaning) {
-            statusWidget->setStatus("CLN", "#FF9800", "CLEAN"); // Orange
+        bool cleanReq = status.needsCleaning || vhf.cleaningRequired || (alerts & ((1ULL << 19) | (1ULL << 20))); // Flags 20, 21
+        if (cleanReq) {
+            statusWidget->setStatus("CLN", "#FF9800", "REQ"); // Orange
         } else {
             statusWidget->setStatus("CLN", "#9E9E9E", "OK");
         }
         
         // OP: Write Protect status
-        if (status.isWriteProtected) {
+        if (status.isWriteProtected || vhf.writeProtect) {
             statusWidget->setStatus("OP", "#FF5722", "WP"); // Red-ish
         } else {
             statusWidget->setStatus("OP", "#4CAF50", "RW");
         }
         
-        // DRV: Ready status
-        if (status.isReady) {
+        // DRV: Ready status + Hardware Error
+        bool driveError = (alerts & ((1ULL << 2) | (1ULL << 29) | (1ULL << 30))); // Flags 3, 30, 31 (Hardware Errors)
+        if (driveError) {
+            statusWidget->setStatus("DRV", "#F44336", "ERR"); // Red
+        } else if (status.isReady) {
             statusWidget->setStatus("DRV", "#4CAF50", "READY");
         } else {
             statusWidget->setStatus("DRV", "#F44336", "BUSY"); // Red
@@ -169,8 +178,12 @@ void MainWindow::on_btnScan_clicked()
         // ENC: Placeholder (assuming off for now)
         statusWidget->setStatus("ENC", "#9E9E9E", "OFF");
         
-        // ACT: Placeholder
-        statusWidget->setStatus("ACT", "#9E9E9E", "IDLE");
+        // ACT: Activity
+        if (vhf.deviceActivity > 0) {
+             statusWidget->setStatus("ACT", "#4CAF50", "ACT"); // Green
+        } else {
+             statusWidget->setStatus("ACT", "#9E9E9E", "IDLE");
+        }
     }
     
     if (devices.isEmpty()) {

@@ -1299,3 +1299,53 @@ VHFLogData DeviceManager::getVHFLogPage(const QString &devicePath)
     return vhf;
 }
 
+uint64_t DeviceManager::readTapeAlerts(const QString &devicePath)
+{
+    uint64_t alerts = 0;
+
+    // LOG SENSE (0x4D)
+    // Page Code: 0x2E (TapeAlert)
+    // PC: 1 (Current Cumulative) -> Byte 2 = (0x01 << 6) | 0x2E = 0x40 | 0x2E = 0x6E
+    
+    std::vector<uint8_t> cdb(10);
+    cdb[0] = 0x4D; // LOG SENSE
+    cdb[1] = 0x00;
+    cdb[2] = 0x6E; // PC=1, Page Code=0x2E
+    cdb[3] = 0x00; // Subpage Code
+    cdb[7] = 0x02; // Allocation Length (MSB) - 512 bytes
+    cdb[8] = 0x00; // Allocation Length (LSB)
+    
+    std::vector<uint8_t> data(512);
+    
+    if (sendScsiCommand(devicePath, cdb, ScsiDirection::In, data)) {
+        // Parse Log Page
+        if (data.size() < 4 || (data[0] & 0x3F) != 0x2E) {
+            return 0;
+        }
+        
+        // Iterate parameters
+        size_t offset = 4;
+        while (offset + 4 <= data.size()) {
+            uint16_t paramCode = (data[offset] << 8) | data[offset+1];
+            uint8_t paramLen = data[offset+3];
+            
+            if (offset + 4 + paramLen > data.size()) break;
+            
+            // TapeAlert flags are 1-64.
+            if (paramCode >= 1 && paramCode <= 64) {
+                // Value is usually 1 byte.
+                if (paramLen >= 1) {
+                    uint8_t value = data[offset + 4];
+                    if (value != 0) {
+                        alerts |= (1ULL << (paramCode - 1));
+                    }
+                }
+            }
+            
+            offset += 4 + paramLen;
+        }
+    }
+    
+    return alerts;
+}
+

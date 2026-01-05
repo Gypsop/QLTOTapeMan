@@ -17,6 +17,8 @@
 #define SCSIOP_START_STOP_UNIT  0x1B
 #define SCSIOP_READ_BLOCK_LIMITS 0x05
 #define SCSIOP_READ_POSITION    0x34
+#define SCSIOP_LOG_SENSE        0x4D
+#define SCSIOP_WRITE_FILEMARKS  0x10
 
 // SCSI Status Codes
 #define SCSISTAT_GOOD           0x00
