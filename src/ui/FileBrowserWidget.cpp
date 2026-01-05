@@ -1,6 +1,10 @@
 #include "FileBrowserWidget.h"
 #include "ui_FileBrowserWidget.h"
 #include <QDateTime>
+#include <QDragEnterEvent>
+#include <QMimeData>
+#include <QFileDialog>
+#include "TransferDialog.h"
 
 FileBrowserWidget::FileBrowserWidget(QWidget *parent) :
     QWidget(parent),
@@ -8,11 +12,36 @@ FileBrowserWidget::FileBrowserWidget(QWidget *parent) :
 {
     ui->setupUi(this);
     ui->treeFiles->setColumnWidth(0, 300);
+    setAcceptDrops(true);
 }
 
 FileBrowserWidget::~FileBrowserWidget()
 {
     delete ui;
+}
+
+void FileBrowserWidget::dragEnterEvent(QDragEnterEvent *event)
+{
+    if (event->mimeData()->hasUrls()) {
+        event->acceptProposedAction();
+    }
+}
+
+void FileBrowserWidget::dropEvent(QDropEvent *event)
+{
+    const QMimeData *mimeData = event->mimeData();
+    if (mimeData->hasUrls()) {
+        QStringList files;
+        for (const QUrl &url : mimeData->urls()) {
+            if (url.isLocalFile()) {
+                files.append(url.toLocalFile());
+            }
+        }
+        
+        if (!files.isEmpty()) {
+            emit filesDropped(files);
+        }
+    }
 }
 
 void FileBrowserWidget::loadIndex(const LtfsIndex &index)

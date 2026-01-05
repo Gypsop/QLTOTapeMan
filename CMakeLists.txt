@@ -34,6 +34,12 @@ set(PROJECT_SOURCES
     src/ltfs/LtfsIndexParser.h
     src/ltfs/IndexManager.cpp
     src/ltfs/IndexManager.h
+    src/transfer/RingBuffer.cpp
+    src/transfer/RingBuffer.h
+    src/transfer/TransferEngine.cpp
+    src/transfer/TransferEngine.h
+    src/ui/TransferDialog.cpp
+    src/ui/TransferDialog.h
 )
 
 if(WIN32)

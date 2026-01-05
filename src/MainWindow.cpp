@@ -2,6 +2,7 @@
 #include "ui_MainWindow.h"
 #include "ui/SettingsDialog.h"
 #include "ui/AboutDialog.h"
+#include "ui/TransferDialog.h"
 #include <QMessageBox>
 #include <QInputDialog>
 #include <QFileDialog>
@@ -34,6 +35,8 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_ltfsManager, &LtfsManager::outputReceived, this, &MainWindow::onLtfsOutputReceived);
     
     connect(&m_futureWatcher, &QFutureWatcher<bool>::finished, this, &MainWindow::onAsyncOperationFinished);
+    
+    connect(m_fileBrowser, &FileBrowserWidget::filesDropped, this, &MainWindow::onFilesDropped);
 }
 
 MainWindow::~MainWindow()
@@ -281,5 +284,37 @@ void MainWindow::on_tabWidget_currentChanged(int index)
         }
     }
 }
+
+void MainWindow::onFilesDropped(const QStringList &files)
+{
+    QString selectedDevice = getSelectedDevicePath();
+    
+    if (!selectedDevice.isEmpty()) {
+        // Ask if user wants to write to this device
+        QMessageBox::StandardButton reply;
+        reply = QMessageBox::question(this, "Write to Tape", 
+                                      "Do you want to write these files directly to the selected tape device?\n" + selectedDevice,
+                                      QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel);
+        
+        if (reply == QMessageBox::Yes) {
+            // Direct SCSI Write
+            TransferDialog *dlg = new TransferDialog(files, selectedDevice, m_deviceManager, this);
+            dlg->setAttribute(Qt::WA_DeleteOnClose);
+            dlg->show();
+            return;
+        } else if (reply == QMessageBox::Cancel) {
+            return;
+        }
+    }
+    
+    // Fallback to file copy (e.g. to mounted LTFS)
+    QString dest = QFileDialog::getExistingDirectory(this, "Select Destination Directory");
+    if (!dest.isEmpty()) {
+        TransferDialog *dlg = new TransferDialog(files, dest, nullptr, this);
+        dlg->setAttribute(Qt::WA_DeleteOnClose);
+        dlg->show();
+    }
+}
+
 
 

@@ -31,7 +31,312 @@
 
 DeviceManager::DeviceManager(QObject *parent) : QObject(parent)
 {
+#ifdef Q_OS_WIN
+    m_deviceHandle = INVALID_HANDLE_VALUE;
+#else
+    m_deviceHandle = nullptr;
+#endif
 }
+
+bool DeviceManager::openDevice(const QString &devicePath)
+{
+    closeDevice(); // Close existing if any
+
+#ifdef Q_OS_WIN
+    HANDLE hDevice = CreateFile(reinterpret_cast<LPCWSTR>(devicePath.utf16()), 
+                              GENERIC_READ | GENERIC_WRITE, 
+                              FILE_SHARE_READ | FILE_SHARE_WRITE, 
+                              NULL, 
+                              OPEN_EXISTING, 
+                              0, 
+                              NULL);
+    
+    if (hDevice != INVALID_HANDLE_VALUE) {
+        m_deviceHandle = hDevice;
+        m_currentDevicePath = devicePath;
+        return true;
+    }
+#endif
+    return false;
+}
+
+void DeviceManager::closeDevice()
+{
+#ifdef Q_OS_WIN
+    if (m_deviceHandle != INVALID_HANDLE_VALUE) {
+        CloseHandle(static_cast<HANDLE>(m_deviceHandle));
+        m_deviceHandle = INVALID_HANDLE_VALUE;
+    }
+#endif
+    m_currentDevicePath.clear();
+}
+
+bool DeviceManager::isDeviceOpen() const
+{
+#ifdef Q_OS_WIN
+    return m_deviceHandle != INVALID_HANDLE_VALUE;
+#else
+    return m_deviceHandle != nullptr;
+#endif
+}
+
+bool DeviceManager::writeScsiBlock(const QByteArray &data)
+{
+    if (!isDeviceOpen()) return false;
+
+#ifdef Q_OS_WIN
+    std::vector<uint8_t> cdb(6);
+    cdb[0] = 0x0A; // WRITE(6)
+    
+    uint32_t len = data.size();
+    // Variable block mode: Transfer Length is bytes
+    cdb[2] = (len >> 16) & 0xFF;
+    cdb[3] = (len >> 8) & 0xFF;
+    cdb[4] = len & 0xFF;
+
+    struct SCSI_PASS_THROUGH_DIRECT_WITH_BUFFER {
+        SCSI_PASS_THROUGH_DIRECT sptd;
+        ULONG             Filler;
+        UCHAR             ucSenseBuf[32];
+    } swb;
+
+    ZeroMemory(&swb, sizeof(swb));
+
+    swb.sptd.Length = sizeof(SCSI_PASS_THROUGH_DIRECT);
+    swb.sptd.CdbLength = 6;
+    swb.sptd.SenseInfoLength = sizeof(swb.ucSenseBuf);
+    swb.sptd.DataIn = SCSI_IOCTL_DATA_OUT;
+    swb.sptd.DataTransferLength = len;
+    swb.sptd.TimeOutValue = 60; // 60 seconds for write
+    swb.sptd.DataBuffer = const_cast<char*>(data.data());
+    swb.sptd.SenseInfoOffset = offsetof(SCSI_PASS_THROUGH_DIRECT_WITH_BUFFER, ucSenseBuf);
+    
+    memcpy(swb.sptd.Cdb, cdb.data(), 6);
+
+    DWORD bytesReturned;
+    BOOL result = DeviceIoControl(static_cast<HANDLE>(m_deviceHandle),
+                                IOCTL_SCSI_PASS_THROUGH_DIRECT,
+                                &swb,
+                                sizeof(swb),
+                                &swb,
+                                sizeof(swb),
+                                &bytesReturned,
+                                NULL);
+    
+    if (!result) {
+        qDebug() << "Write failed. Error:" << GetLastError();
+    }
+    return result != 0;
+#else
+    return false;
+#endif
+}
+
+QByteArray DeviceManager::readScsiBlock(uint32_t length)
+{
+    if (!isDeviceOpen()) return QByteArray();
+
+#ifdef Q_OS_WIN
+    std::vector<uint8_t> cdb(6);
+    cdb[0] = 0x08; // READ(6)
+    
+    cdb[2] = (length >> 16) & 0xFF;
+    cdb[3] = (length >> 8) & 0xFF;
+    cdb[4] = length & 0xFF;
+
+    QByteArray data(length, 0);
+
+    struct SCSI_PASS_THROUGH_DIRECT_WITH_BUFFER {
+        SCSI_PASS_THROUGH_DIRECT sptd;
+        ULONG             Filler;
+        UCHAR             ucSenseBuf[32];
+    } swb;
+
+    ZeroMemory(&swb, sizeof(swb));
+
+    swb.sptd.Length = sizeof(SCSI_PASS_THROUGH_DIRECT);
+    swb.sptd.CdbLength = 6;
+    swb.sptd.SenseInfoLength = sizeof(swb.ucSenseBuf);
+    swb.sptd.DataIn = SCSI_IOCTL_DATA_IN;
+    swb.sptd.DataTransferLength = length;
+    swb.sptd.TimeOutValue = 60;
+    swb.sptd.DataBuffer = data.data();
+    swb.sptd.SenseInfoOffset = offsetof(SCSI_PASS_THROUGH_DIRECT_WITH_BUFFER, ucSenseBuf);
+    
+    memcpy(swb.sptd.Cdb, cdb.data(), 6);
+
+    DWORD bytesReturned;
+    BOOL result = DeviceIoControl(static_cast<HANDLE>(m_deviceHandle),
+                                IOCTL_SCSI_PASS_THROUGH_DIRECT,
+                                &swb,
+                                sizeof(swb),
+                                &swb,
+                                sizeof(swb),
+                                &bytesReturned,
+                                NULL);
+    
+    if (!result) {
+        qDebug() << "Read failed. Error:" << GetLastError();
+        return QByteArray();
+    }
+    return data;
+#else
+    return QByteArray();
+#endif
+}
+
+bool DeviceManager::writeFileMark(uint8_t count)
+{
+    if (!isDeviceOpen()) return false;
+    
+    // WRITE FILEMARKS (6) - Opcode 0x10
+    std::vector<uint8_t> cdb(6);
+    cdb[0] = 0x10;
+    cdb[2] = (count >> 16) & 0xFF;
+    cdb[3] = (count >> 8) & 0xFF;
+    cdb[4] = count & 0xFF;
+    
+    std::vector<uint8_t> data; // No data
+    
+    // Use sendScsiCommand logic but with open handle
+    // ... (Duplicating logic for now for simplicity)
+#ifdef Q_OS_WIN
+    struct SCSI_PASS_THROUGH_DIRECT_WITH_BUFFER {
+        SCSI_PASS_THROUGH_DIRECT sptd;
+        ULONG             Filler;
+        UCHAR             ucSenseBuf[32];
+    } swb;
+
+    ZeroMemory(&swb, sizeof(swb));
+
+    swb.sptd.Length = sizeof(SCSI_PASS_THROUGH_DIRECT);
+    swb.sptd.CdbLength = 6;
+    swb.sptd.SenseInfoLength = sizeof(swb.ucSenseBuf);
+    swb.sptd.DataIn = SCSI_IOCTL_DATA_UNSPECIFIED;
+    swb.sptd.DataTransferLength = 0;
+    swb.sptd.TimeOutValue = 60;
+    swb.sptd.DataBuffer = NULL;
+    swb.sptd.SenseInfoOffset = offsetof(SCSI_PASS_THROUGH_DIRECT_WITH_BUFFER, ucSenseBuf);
+    
+    memcpy(swb.sptd.Cdb, cdb.data(), 6);
+
+    DWORD bytesReturned;
+    BOOL result = DeviceIoControl(static_cast<HANDLE>(m_deviceHandle),
+                                IOCTL_SCSI_PASS_THROUGH_DIRECT,
+                                &swb,
+                                sizeof(swb),
+                                &swb,
+                                sizeof(swb),
+                                &bytesReturned,
+                                NULL);
+    return result != 0;
+#else
+    return false;
+#endif
+}
+
+bool DeviceManager::space(int32_t count, uint8_t code)
+{
+    if (!isDeviceOpen()) return false;
+    
+    // SPACE (6) - Opcode 0x11
+    std::vector<uint8_t> cdb(6);
+    cdb[0] = 0x11;
+    cdb[1] = code & 0x0F; // Code (0=Blocks, 1=Filemarks, 3=End of Data)
+    
+    // Count is 24-bit signed integer in CDB(6)
+    // If count is negative, it's 2's complement
+    cdb[2] = (count >> 16) & 0xFF;
+    cdb[3] = (count >> 8) & 0xFF;
+    cdb[4] = count & 0xFF;
+    
+    // ... (Same logic)
+#ifdef Q_OS_WIN
+    struct SCSI_PASS_THROUGH_DIRECT_WITH_BUFFER {
+        SCSI_PASS_THROUGH_DIRECT sptd;
+        ULONG             Filler;
+        UCHAR             ucSenseBuf[32];
+    } swb;
+
+    ZeroMemory(&swb, sizeof(swb));
+
+    swb.sptd.Length = sizeof(SCSI_PASS_THROUGH_DIRECT);
+    swb.sptd.CdbLength = 6;
+    swb.sptd.SenseInfoLength = sizeof(swb.ucSenseBuf);
+    swb.sptd.DataIn = SCSI_IOCTL_DATA_UNSPECIFIED;
+    swb.sptd.DataTransferLength = 0;
+    swb.sptd.TimeOutValue = 300; // Space can take time
+    swb.sptd.DataBuffer = NULL;
+    swb.sptd.SenseInfoOffset = offsetof(SCSI_PASS_THROUGH_DIRECT_WITH_BUFFER, ucSenseBuf);
+    
+    memcpy(swb.sptd.Cdb, cdb.data(), 6);
+
+    DWORD bytesReturned;
+    BOOL result = DeviceIoControl(static_cast<HANDLE>(m_deviceHandle),
+                                IOCTL_SCSI_PASS_THROUGH_DIRECT,
+                                &swb,
+                                sizeof(swb),
+                                &swb,
+                                sizeof(swb),
+                                &bytesReturned,
+                                NULL);
+    return result != 0;
+#else
+    return false;
+#endif
+}
+
+bool DeviceManager::locate(uint32_t blockAddress)
+{
+    if (!isDeviceOpen()) return false;
+    
+    // LOCATE (10) - Opcode 0x2B
+    std::vector<uint8_t> cdb(10);
+    cdb[0] = 0x2B;
+    cdb[1] = 0; // BT=0 (Logical Block Address)
+    
+    cdb[2] = (blockAddress >> 24) & 0xFF;
+    cdb[3] = (blockAddress >> 16) & 0xFF;
+    cdb[4] = (blockAddress >> 8) & 0xFF;
+    cdb[5] = blockAddress & 0xFF;
+    
+    // ...
+#ifdef Q_OS_WIN
+    struct SCSI_PASS_THROUGH_DIRECT_WITH_BUFFER {
+        SCSI_PASS_THROUGH_DIRECT sptd;
+        ULONG             Filler;
+        UCHAR             ucSenseBuf[32];
+    } swb;
+
+    ZeroMemory(&swb, sizeof(swb));
+
+    swb.sptd.Length = sizeof(SCSI_PASS_THROUGH_DIRECT);
+    swb.sptd.CdbLength = 10;
+    swb.sptd.SenseInfoLength = sizeof(swb.ucSenseBuf);
+    swb.sptd.DataIn = SCSI_IOCTL_DATA_UNSPECIFIED;
+    swb.sptd.DataTransferLength = 0;
+    swb.sptd.TimeOutValue = 300;
+    swb.sptd.DataBuffer = NULL;
+    swb.sptd.SenseInfoOffset = offsetof(SCSI_PASS_THROUGH_DIRECT_WITH_BUFFER, ucSenseBuf);
+    
+    memcpy(swb.sptd.Cdb, cdb.data(), 10);
+
+    DWORD bytesReturned;
+    BOOL result = DeviceIoControl(static_cast<HANDLE>(m_deviceHandle),
+                                IOCTL_SCSI_PASS_THROUGH_DIRECT,
+                                &swb,
+                                sizeof(swb),
+                                &swb,
+                                sizeof(swb),
+                                &bytesReturned,
+                                NULL);
+    return result != 0;
+#else
+    return false;
+#endif
+}
+
+
 
 QList<TapeDeviceInfo> DeviceManager::scanDevices()
 {

@@ -20,6 +20,13 @@ public:
     void loadIndex(const LtfsIndex &index);
     void clear();
 
+signals:
+    void filesDropped(const QStringList &files);
+
+protected:
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
+
 private slots:
     void on_txtSearch_textChanged(const QString &arg1);
 

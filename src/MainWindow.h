@@ -45,6 +45,8 @@ private slots:
     void on_actionAbout_triggered();
     
     void on_tabWidget_currentChanged(int index);
+    
+    void onFilesDropped(const QStringList &files);
 
 private:
     Ui::MainWindow *ui;

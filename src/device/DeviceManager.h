@@ -39,14 +39,28 @@ public:
                          unsigned int timeout = 5000);
 
     // Tape Operations
+    bool openDevice(const QString &devicePath);
+    void closeDevice();
+    bool isDeviceOpen() const;
+
     bool isDeviceReady(const QString &devicePath);
     bool rewindDevice(const QString &devicePath);
     bool unloadDevice(const QString &devicePath);
+    
+    // Block I/O Operations (Requires openDevice)
+    bool writeScsiBlock(const QByteArray &data);
+    QByteArray readScsiBlock(uint32_t length);
+    bool writeFileMark(uint8_t count = 1);
+    bool space(int32_t count, uint8_t code); // code: 0=Blocks, 1=FileMarks
+    bool locate(uint32_t blockAddress);
 
 signals:
     void deviceListChanged(const QList<TapeDeviceInfo> &devices);
 
 private:
+    void* m_deviceHandle = nullptr; // Platform specific handle
+    QString m_currentDevicePath;
+
     // OS-specific implementations
     QList<TapeDeviceInfo> scanDevicesWindows();
     QList<TapeDeviceInfo> scanDevicesLinux();
