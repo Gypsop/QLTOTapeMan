@@ -4,6 +4,8 @@
 #include <QMainWindow>
 #include <QProgressBar>
 #include <QLabel>
+#include <QPushButton>
+#include <QTimer>
 #include <QFutureWatcher>
 #include "device/DeviceManager.h"
 #include "device/LtfsManager.h"
@@ -60,6 +62,7 @@ private:
     // Status Bar Widgets
     QProgressBar *m_progressBar;
     QLabel *m_statusLabel;
+    QPushButton *m_btnStop; // Global Stop Button
     
     // Status LED Labels
     QLabel *m_ledOpStatus; // S1
@@ -86,5 +89,6 @@ private:
     
 private slots:
     void onStatusTimerTick();
+    void onStopClicked();
 };
 #endif // MAINWINDOW_H

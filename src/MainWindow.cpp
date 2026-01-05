@@ -32,6 +32,14 @@ MainWindow::MainWindow(QWidget *parent)
     ui->statusbar->addPermanentWidget(m_progressBar);
     ui->statusbar->addWidget(m_statusLabel);
     
+    // Setup Stop Button
+    m_btnStop = new QPushButton("STOP", this);
+    m_btnStop->setStyleSheet("QPushButton { background-color: red; color: white; font-weight: bold; }");
+    m_btnStop->setToolTip("Stop current operation");
+    m_btnStop->setEnabled(false); // Disabled by default
+    connect(m_btnStop, &QPushButton::clicked, this, &MainWindow::onStopClicked);
+    ui->statusbar->addPermanentWidget(m_btnStop);
+    
     // Setup LED Labels
     QString grayStyle = "QLabel { background-color: gray; color: white; padding: 2px; border-radius: 4px; min-width: 40px; alignment: center; }";
     
@@ -95,11 +103,36 @@ void MainWindow::setBusy(bool busy, const QString &message)
     ui->groupBoxOperations->setEnabled(!busy);
     ui->btnScan->setEnabled(!busy);
     m_progressBar->setVisible(busy);
+    m_btnStop->setEnabled(busy); // Enable stop button when busy
+    
     if (busy) {
         m_statusLabel->setText(message);
         logMessage("Started: " + message);
     } else {
         m_statusLabel->clear();
+    }
+}
+
+void MainWindow::onStopClicked()
+{
+    if (QMessageBox::warning(this, "Confirm Stop", 
+                             "Are you sure you want to force stop the current operation?\n"
+                             "This may leave the tape or file system in an inconsistent state.", 
+                             QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes) {
+        
+        logMessage("User requested stop...");
+        
+        // Cancel LTFS operations
+        m_ltfsManager->cancelOperation();
+        
+        // Note: DeviceManager operations running in QtConcurrent cannot be easily cancelled safely
+        // without risking driver instability, but we can at least update the UI.
+        if (m_futureWatcher.isRunning()) {
+            logMessage("Warning: Cannot safely cancel raw device operation. Please wait or restart application if it hangs.");
+        }
+        
+        setBusy(false);
+        logMessage("Operation stopped by user.");
     }
 }
 

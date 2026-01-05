@@ -26,6 +26,9 @@ public:
     // Check/Recover tape (ltfsck)
     void check(const QString &devicePath, bool deepRecovery = false);
 
+    // Cancel current operation
+    void cancelOperation();
+
 signals:
     void operationStarted(const QString &operation);
     void operationFinished(const QString &operation, bool success, const QString &message);
@@ -33,6 +36,7 @@ signals:
 
 private:
     void runProcess(const QString &program, const QStringList &arguments, const QString &opName);
+    QProcess *m_currentProcess = nullptr;
 };
 
 #endif // LTFSMANAGER_H

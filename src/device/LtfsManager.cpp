@@ -77,25 +77,40 @@ void LtfsManager::check(const QString &devicePath, bool deepRecovery)
     runProcess(program, args, "Check/Recover");
 }
 
+void LtfsManager::cancelOperation()
+{
+    if (m_currentProcess && m_currentProcess->state() != QProcess::NotRunning) {
+        m_currentProcess->kill();
+        m_currentProcess->waitForFinished(1000);
+        emit outputReceived("Operation cancelled by user.\n");
+    }
+}
+
 void LtfsManager::runProcess(const QString &program, const QStringList &arguments, const QString &opName)
 {
-    QProcess *process = new QProcess(this);
+    if (m_currentProcess && m_currentProcess->state() != QProcess::NotRunning) {
+        emit outputReceived("Another operation is already running.\n");
+        return;
+    }
+
+    m_currentProcess = new QProcess(this);
     
-    connect(process, &QProcess::readyReadStandardOutput, this, [this, process]() {
-        emit outputReceived(process->readAllStandardOutput());
+    connect(m_currentProcess, &QProcess::readyReadStandardOutput, this, [this]() {
+        emit outputReceived(m_currentProcess->readAllStandardOutput());
     });
     
-    connect(process, &QProcess::readyReadStandardError, this, [this, process]() {
-        emit outputReceived(process->readAllStandardError());
+    connect(m_currentProcess, &QProcess::readyReadStandardError, this, [this]() {
+        emit outputReceived(m_currentProcess->readAllStandardError());
     });
 
-    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            this, [this, process, opName](int exitCode, QProcess::ExitStatus exitStatus) {
+    connect(m_currentProcess, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, [this, opName](int exitCode, QProcess::ExitStatus exitStatus) {
         bool success = (exitStatus == QProcess::NormalExit && exitCode == 0);
         emit operationFinished(opName, success, success ? "Success" : "Failed");
-        process->deleteLater();
+        m_currentProcess->deleteLater();
+        m_currentProcess = nullptr;
     });
 
     emit operationStarted(opName);
-    process->start(program, arguments);
+    m_currentProcess->start(program, arguments);
 }
