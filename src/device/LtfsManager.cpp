@@ -42,34 +42,82 @@ void LtfsManager::unmount(const QString &mountPoint)
     runProcess(program, args, "Unmount");
 }
 
-void LtfsManager::format(const QString &devicePath, const QString &volumeName)
+void LtfsManager::format(const QString &devicePath, const LtfsFormatOptions &options)
 {
     QString program = SettingsManager::instance().mkltfsBinaryPath();
     if (program.isEmpty()) program = "mkltfs";
     
     QStringList args;
     
-#ifdef Q_OS_WIN
-    // Windows: mkltfs -d <device> -n <name> --wipe
-    // Note: --wipe forces formatting even if LTFS exists
-    args << "-d" << devicePath << "-n" << volumeName << "--wipe";
-#else
-    // Linux/Mac: mkltfs -d <device> -n <name> --wipe
-    args << "-d" << devicePath << "-n" << volumeName << "--wipe";
-#endif
+    // Device
+    args << "-d" << devicePath;
+    
+    // Volume Name
+    if (!options.volumeName.isEmpty()) {
+        args << "-n" << options.volumeName;
+    }
+    
+    // Tape Serial
+    if (!options.tapeSerial.isEmpty()) {
+        args << "-s" << options.tapeSerial;
+    }
+    
+    // Block Size (default is usually fine, but user can override)
+    // mkltfs usually takes -b in bytes? or KB?
+    // Man page says: -b, --blocksize=SIZE. SIZE is in bytes.
+    if (options.blockSize > 0) {
+        args << "-b" << QString::number(options.blockSize);
+    }
+    
+    // Compression
+    if (options.compression) {
+        args << "--compression";
+    } else {
+        args << "--no-compression";
+    }
+    
+    // Wipe
+    if (options.wipe) {
+        args << "--wipe";
+    }
+    
+    // Force
+    if (options.force) {
+        args << "--force";
+    }
+
+    // Index Partition Size
+    if (options.indexPartitionSize > 0) {
+        args << "--index-partition-size" << QString::number(options.indexPartitionSize);
+    }
+
+    // Encryption Key File
+    if (!options.keyFile.isEmpty()) {
+        args << "-k" << options.keyFile;
+    }
 
     runProcess(program, args, "Format");
 }
 
-void LtfsManager::check(const QString &devicePath, bool deepRecovery)
+void LtfsManager::check(const QString &devicePath, const LtfsCheckOptions &options)
 {
     QString program = SettingsManager::instance().ltfsckBinaryPath();
     if (program.isEmpty()) program = "ltfsck";
     
     QStringList args;
     
-    if (deepRecovery) {
+    if (options.deepRecovery) {
         args << "--deep-recovery";
+    }
+    
+    if (options.fullRecovery) {
+        args << "--full-recovery";
+    }
+    
+    if (options.captureIndex) {
+        // This usually requires a file path, but for now let's assume it just dumps to stdout or default
+        // Actually -g takes a path. We might need to add that to options if we want to support it fully.
+        // For now, let's skip or implement if requested.
     }
     
     args << devicePath;

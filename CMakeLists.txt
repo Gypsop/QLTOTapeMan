@@ -44,6 +44,10 @@ set(PROJECT_SOURCES
     src/ui/DeviceStatusDialog.h
     src/ui/DeviceStatusWidget.cpp
     src/ui/DeviceStatusWidget.h
+    src/ui/FormatDialog.cpp
+    src/ui/FormatDialog.h
+    src/ui/CheckDialog.cpp
+    src/ui/CheckDialog.h
 )
 
 if(WIN32)

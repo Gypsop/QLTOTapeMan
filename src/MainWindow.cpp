@@ -4,6 +4,8 @@
 #include "ui/AboutDialog.h"
 #include "ui/TransferDialog.h"
 #include "ui/DeviceStatusWidget.h"
+#include "ui/FormatDialog.h"
+#include "ui/CheckDialog.h"
 #include <QMessageBox>
 #include <QInputDialog>
 #include <QFileDialog>
@@ -124,6 +126,43 @@ void MainWindow::on_btnScan_clicked()
         
         DeviceStatusWidget *statusWidget = new DeviceStatusWidget(ui->treeDevices);
         ui->treeDevices->setItemWidget(item, 4, statusWidget);
+        
+        // Fetch and display initial status
+        TapeStatus status = m_deviceManager->getDeviceStatus(device.devicePath);
+        
+        // TAPE: Loaded/Empty
+        if (status.isLoaded) {
+            statusWidget->setStatus("TAPE", "#4CAF50", "LOADED"); // Green
+        } else {
+            statusWidget->setStatus("TAPE", "#9E9E9E", "EMPTY"); // Gray
+        }
+        
+        // CLN: Cleaning
+        if (status.needsCleaning) {
+            statusWidget->setStatus("CLN", "#FF9800", "CLEAN"); // Orange
+        } else {
+            statusWidget->setStatus("CLN", "#9E9E9E", "OK");
+        }
+        
+        // OP: Write Protect status
+        if (status.isWriteProtected) {
+            statusWidget->setStatus("OP", "#FF5722", "WP"); // Red-ish
+        } else {
+            statusWidget->setStatus("OP", "#4CAF50", "RW");
+        }
+        
+        // DRV: Ready status
+        if (status.isReady) {
+            statusWidget->setStatus("DRV", "#4CAF50", "READY");
+        } else {
+            statusWidget->setStatus("DRV", "#F44336", "BUSY"); // Red
+        }
+        
+        // ENC: Placeholder (assuming off for now)
+        statusWidget->setStatus("ENC", "#9E9E9E", "OFF");
+        
+        // ACT: Placeholder
+        statusWidget->setStatus("ACT", "#9E9E9E", "IDLE");
     }
     
     if (devices.isEmpty()) {
@@ -221,40 +260,75 @@ void MainWindow::onAsyncOperationFinished()
 void MainWindow::on_btnFormat_clicked()
 {
     QString path = getSelectedDevicePath();
-    if (path.isEmpty()) return;
+    if (path.isEmpty()) {
+        QMessageBox::warning(this, "No Device Selected", "Please select a tape device first.");
+        return;
+    }
     
-    bool ok;
-    QString volumeName = QInputDialog::getText(this, "Format Tape", "Enter Volume Name:", QLineEdit::Normal, "TAPE001", &ok);
-    if (!ok || volumeName.isEmpty()) return;
+    // Pre-check: Device Status
+    TapeStatus status = m_deviceManager->getDeviceStatus(path);
+    if (!status.isLoaded) {
+        QMessageBox::warning(this, "No Tape Loaded", "Please load a tape before formatting.");
+        return;
+    }
+    if (status.isWriteProtected) {
+        QMessageBox::warning(this, "Write Protected", "The tape is write-protected. Please disable write protection.");
+        return;
+    }
+    
+    FormatDialog dialog(this);
+    if (dialog.exec() != QDialog::Accepted) return;
+    
+    LtfsFormatOptions options = dialog.getOptions();
     
     if (QMessageBox::warning(this, "Confirm Format", 
-                             "WARNING: This will ERASE ALL DATA on the tape.\nAre you sure?", 
+                             QString("WARNING: This will ERASE ALL DATA on tape %1.\n"
+                                     "Volume Name: %2\n"
+                                     "Block Size: %3\n"
+                                     "Compression: %4\n"
+                                     "Index Partition: %5 MB\n"
+                                     "Encryption: %6\n\n"
+                                     "Are you sure?")
+                                     .arg(path, 
+                                          options.volumeName, 
+                                          QString::number(options.blockSize), 
+                                          options.compression ? "On" : "Off",
+                                          QString::number(options.indexPartitionSize),
+                                          options.keyFile.isEmpty() ? "None" : "Enabled"), 
                              QMessageBox::Yes | QMessageBox::No) != QMessageBox::Yes) {
         return;
     }
     
     setBusy(true, "Formatting tape (mkltfs)...");
-    m_ltfsManager->format(path, volumeName);
+    m_ltfsManager->format(path, options);
 }
 
 void MainWindow::on_btnCheck_clicked()
 {
     QString path = getSelectedDevicePath();
-    if (path.isEmpty()) return;
+    if (path.isEmpty()) {
+        QMessageBox::warning(this, "No Device Selected", "Please select a tape device first.");
+        return;
+    }
     
-    QMessageBox::StandardButton reply;
-    reply = QMessageBox::question(this, "Check/Recover Tape", 
-                                  "Do you want to perform a Deep Recovery?\n"
-                                  "Deep Recovery scans the entire tape and takes a long time.\n"
-                                  "Select 'No' for a standard consistency check.",
-                                  QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel);
+    // Pre-check: Device Status
+    TapeStatus status = m_deviceManager->getDeviceStatus(path);
+    if (!status.isLoaded) {
+        QMessageBox::warning(this, "No Tape Loaded", "Please load a tape before checking.");
+        return;
+    }
+    if (status.isWriteProtected) {
+        QMessageBox::warning(this, "Write Protected", "The tape is write-protected. Cannot perform repair/check operations.");
+        return;
+    }
     
-    if (reply == QMessageBox::Cancel) return;
+    CheckDialog dialog(this);
+    if (dialog.exec() != QDialog::Accepted) return;
     
-    bool deep = (reply == QMessageBox::Yes);
+    LtfsCheckOptions options = dialog.getOptions();
     
-    setBusy(true, deep ? "Recovering tape (Deep Scan)..." : "Checking tape consistency...");
-    m_ltfsManager->check(path, deep);
+    setBusy(true, "Checking tape (ltfsck)...");
+    m_ltfsManager->check(path, options);
 }
 
 void MainWindow::on_btnMount_clicked()

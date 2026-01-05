@@ -5,6 +5,23 @@
 #include <QString>
 #include <QProcess>
 
+struct LtfsFormatOptions {
+    QString volumeName;
+    QString tapeSerial;
+    int blockSize = 524288; // 512KB
+    bool compression = true;
+    bool wipe = false;
+    bool force = true;
+    int indexPartitionSize = 0; // MB, 0 = default
+    QString keyFile; // Path to key file for encryption
+};
+
+struct LtfsCheckOptions {
+    bool deepRecovery = false;
+    bool fullRecovery = false;
+    bool captureIndex = false;
+};
+
 class LtfsManager : public QObject
 {
     Q_OBJECT
@@ -21,10 +38,10 @@ public:
     void unmount(const QString &mountPoint);
 
     // Format tape (mkltfs)
-    void format(const QString &devicePath, const QString &volumeName);
+    void format(const QString &devicePath, const LtfsFormatOptions &options);
 
     // Check/Recover tape (ltfsck)
-    void check(const QString &devicePath, bool deepRecovery = false);
+    void check(const QString &devicePath, const LtfsCheckOptions &options);
 
     // Cancel current operation
     void cancelOperation();
