@@ -22,10 +22,14 @@ set(PROJECT_SOURCES
     src/ui/SettingsDialog.cpp
     src/ui/SettingsDialog.h
     src/ui/SettingsDialog.ui
+    src/ui/AboutDialog.cpp
+    src/ui/AboutDialog.h
+    src/ui/AboutDialog.ui
     src/ui/FileBrowserWidget.cpp
     src/ui/FileBrowserWidget.h
     src/ui/FileBrowserWidget.ui
     src/ltfs/LtfsElements.h
+    src/Version.h
     src/ltfs/LtfsIndexParser.cpp
     src/ltfs/LtfsIndexParser.h
     src/ltfs/IndexManager.cpp

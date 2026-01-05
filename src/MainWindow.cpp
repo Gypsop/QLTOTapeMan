@@ -1,6 +1,7 @@
 #include "MainWindow.h"
 #include "ui_MainWindow.h"
 #include "ui/SettingsDialog.h"
+#include "ui/AboutDialog.h"
 #include <QMessageBox>
 #include <QInputDialog>
 #include <QFileDialog>
@@ -248,6 +249,13 @@ void MainWindow::on_actionExit_triggered()
 {
     close();
 }
+
+void MainWindow::on_actionAbout_triggered()
+{
+    AboutDialog dialog(this);
+    dialog.exec();
+}
+
 
 void MainWindow::on_tabWidget_currentChanged(int index)
 {

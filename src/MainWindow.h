@@ -42,6 +42,7 @@ private slots:
     // Menu slots
     void on_actionSettings_triggered();
     void on_actionExit_triggered();
+    void on_actionAbout_triggered();
     
     void on_tabWidget_currentChanged(int index);
 
