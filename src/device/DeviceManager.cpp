@@ -1290,6 +1290,11 @@ VHFLogData DeviceManager::getVHFLogPage(const QString &devicePath)
                     
                     vhf.isValid = true;
                 }
+            } else if (paramCode == 0x0101) { // Encryption Status
+                if (paramLen >= 1) {
+                    uint8_t byte0 = data[offset + 4];
+                    vhf.encryptionEnabled = (byte0 & 0x01);
+                }
             }
             
             offset += 4 + paramLen;
@@ -1298,6 +1303,72 @@ VHFLogData DeviceManager::getVHFLogPage(const QString &devicePath)
     
     return vhf;
 }
+
+DriveLedStatus DeviceManager::getDriveLedStatus(const QString &devicePath)
+{
+    DriveLedStatus status;
+    
+    // 1. Get Encryption Status from VHF Page (0x11)
+    VHFLogData vhf = getVHFLogPage(devicePath);
+    if (vhf.isValid) {
+        status.encryption = vhf.encryptionEnabled;
+    }
+    
+    // 2. Get Device Status Page (0x3E)
+    // LOG SENSE (0x4D)
+    // Page Code: 0x3E
+    // PC: 1 (Current Cumulative) -> Byte 2 = (0x01 << 6) | 0x3E = 0x40 | 0x3E = 0x7E
+    
+    std::vector<uint8_t> cdb(10);
+    cdb[0] = 0x4D; // LOG SENSE
+    cdb[1] = 0x00;
+    cdb[2] = 0x7E; // PC=1, Page Code=0x3E
+    cdb[3] = 0x00; // Subpage Code
+    cdb[7] = 0x00; // Allocation Length (MSB)
+    cdb[8] = 0xFF; // Allocation Length (LSB)
+    
+    std::vector<uint8_t> data(255);
+    
+    if (sendScsiCommand(devicePath, cdb, ScsiDirection::In, data)) {
+        if (data.size() >= 4 && (data[0] & 0x3F) == 0x3E) {
+             size_t offset = 4;
+             while (offset + 4 <= data.size()) {
+                uint16_t paramCode = (data[offset] << 8) | data[offset+1];
+                uint8_t paramLen = data[offset+3];
+                
+                if (offset + 4 + paramLen > data.size()) break;
+                
+                if (paramCode == 0x0001) { // Device Status Bits
+                    // Byte 0: Cleaning flags
+                    // Byte 1: Device Status
+                    // Byte 2: Medium Status
+                    if (paramLen >= 3) {
+                        uint8_t byte0 = data[offset + 4];
+                        uint8_t byte1 = data[offset + 5];
+                        uint8_t byte2 = data[offset + 6];
+                        
+                        // Cleaning Required: Bit 2 (assuming MSB-based BitOffset 5)
+                        bool cleaningRequired = (byte0 & 0x04);
+                        
+                        // Device Status: Bits 1-0
+                        uint8_t deviceStatus = (byte1 & 0x03);
+                        
+                        // Medium Status: Bits 1-0
+                        uint8_t mediumStatus = (byte2 & 0x03);
+                        
+                        status.clean = cleaningRequired;
+                        status.driveError = (deviceStatus > 1);
+                        status.tapeError = (mediumStatus > 1);
+                    }
+                }
+                offset += 4 + paramLen;
+             }
+        }
+    }
+    
+    return status;
+}
+
 
 uint64_t DeviceManager::readTapeAlerts(const QString &devicePath)
 {

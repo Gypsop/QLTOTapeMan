@@ -44,6 +44,13 @@ struct TapeStatus {
     QString statusMessage; // Human readable status
 };
 
+struct DriveLedStatus {
+    bool encryption = false;
+    bool clean = false;
+    bool tapeError = false;
+    bool driveError = false;
+};
+
 struct VHFLogData {
     bool cleanRequested = false;
     bool cleaningRequired = false;
@@ -51,6 +58,7 @@ struct VHFLogData {
     bool mediaThreaded = false;
     bool dataAccessible = false;
     bool writeProtect = false;
+    bool encryptionEnabled = false;
     bool inTransition = false;
     uint8_t deviceActivity = 0; // 0=No activity, 1=Cleaning, 2=Loading, 3=Unloading, 4=Reading, 5=Writing, etc.
     bool isValid = false;
@@ -78,6 +86,7 @@ public:
     bool isDeviceOpen() const;
 
     TapeStatus getDeviceStatus(const QString &devicePath); // High-level status check
+    DriveLedStatus getDriveLedStatus(const QString &devicePath); // Get LED status from Log Pages 0x3E and 0x11
     VHFLogData getVHFLogPage(const QString &devicePath); // Get Very High Frequency Log Page (0x11)
     uint64_t readTapeAlerts(const QString &devicePath); // Get TapeAlert Log Page (0x2E)
 

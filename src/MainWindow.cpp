@@ -528,6 +528,7 @@ void MainWindow::onStatusTimerTick()
         // We run this synchronously for now as it should be fast
         // Note: If we have many devices, this might block UI. 
         // Ideally we should use async or a separate thread for polling.
+        DriveLedStatus ledStatus = m_deviceManager->getDriveLedStatus(devicePath);
         VHFLogData vhf = m_deviceManager->getVHFLogPage(devicePath);
         
         if (!vhf.isValid) {
@@ -535,7 +536,7 @@ void MainWindow::onStatusTimerTick()
             continue;
         }
         
-        // Update LEDs based on VHF data
+        // Update LEDs based on VHF data and Log Pages
         
         // S1: Operation Status (Ready/Busy)
         if (vhf.deviceActivity != 0 || vhf.inTransition) {
@@ -546,48 +547,43 @@ void MainWindow::onStatusTimerTick()
             statusWidget->setStatus("OP", "gray", "IDLE");
         }
         
-        // S2: Encryption
-        statusWidget->setStatus("ENC", "gray");
-        
-        // S3: Cleaning
-        if (vhf.cleaningRequired || vhf.cleanRequested) {
-            statusWidget->setStatus("CLN", "orange");
+        // S2: Encryption (Blue if present)
+        if (ledStatus.encryption) {
+            statusWidget->setStatus("ENC", "blue", "ON");
         } else {
-            statusWidget->setStatus("CLN", "gray");
+            statusWidget->setStatus("ENC", "gray", "OFF");
+        }
+
+        // S3: Cleaning (Orange if required)
+        if (ledStatus.clean) {
+            statusWidget->setStatus("CLN", "orange", "REQ");
+        } else {
+            statusWidget->setStatus("CLN", "gray", "OK");
+        }
+
+        // S4: Tape Status (Orange if error)
+        if (ledStatus.tapeError) {
+            statusWidget->setStatus("TAPE", "orange", "ERR");
+        } else {
+            statusWidget->setStatus("TAPE", "gray", "OK");
+        }
+
+        // S5: Drive Status (Orange if error)
+        if (ledStatus.driveError) {
+            statusWidget->setStatus("DRV", "orange", "ERR");
+        } else {
+            statusWidget->setStatus("DRV", "gray", "OK");
         }
         
-        // S4: Tape Status (Media Present)
-        if (vhf.mediaPresent) {
-            if (vhf.mediaThreaded) {
-                 statusWidget->setStatus("TAPE", "green");
-            } else {
-                 statusWidget->setStatus("TAPE", "blue");
-            }
+        // S6: Activity (Green if active)
+        if (vhf.deviceActivity > 0) {
+             statusWidget->setStatus("ACT", "#4CAF50", "ACT"); // Green
         } else {
-            statusWidget->setStatus("TAPE", "gray");
-        }
-        
-        // S5: Drive Status
-        if (vhf.dataAccessible) {
-            statusWidget->setStatus("DRV", "green");
-        } else {
-            statusWidget->setStatus("DRV", "gray");
-        }
-        
-        // S6: Activity (Blink if busy)
-        static bool blink = false;
-        blink = !blink;
-        if (vhf.deviceActivity != 0) {
-            if (blink) {
-                statusWidget->setStatus("ACT", "lime", QString(), "black");
-            } else {
-                statusWidget->setStatus("ACT", "green");
-            }
-        } else {
-            statusWidget->setStatus("ACT", "gray");
+             statusWidget->setStatus("ACT", "gray", "IDLE");
         }
     }
 }
+
 
 void MainWindow::on_btnErase_clicked()
 {
