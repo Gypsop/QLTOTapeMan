@@ -8,6 +8,7 @@
 #include <QFileDialog>
 #include <QtConcurrent/QtConcurrent>
 #include <QDateTime>
+#include <QTimer>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -30,6 +31,44 @@ MainWindow::MainWindow(QWidget *parent)
     m_progressBar->setMaximumWidth(200);
     ui->statusbar->addPermanentWidget(m_progressBar);
     ui->statusbar->addWidget(m_statusLabel);
+    
+    // Setup LED Labels
+    QString grayStyle = "QLabel { background-color: gray; color: white; padding: 2px; border-radius: 4px; min-width: 40px; alignment: center; }";
+    
+    m_ledOpStatus = new QLabel("OP", this);
+    m_ledOpStatus->setStyleSheet(grayStyle);
+    m_ledOpStatus->setAlignment(Qt::AlignCenter);
+    
+    m_ledEncryption = new QLabel("ENC", this);
+    m_ledEncryption->setStyleSheet(grayStyle);
+    m_ledEncryption->setAlignment(Qt::AlignCenter);
+    
+    m_ledCleaning = new QLabel("CLN", this);
+    m_ledCleaning->setStyleSheet(grayStyle);
+    m_ledCleaning->setAlignment(Qt::AlignCenter);
+    
+    m_ledTapeStatus = new QLabel("TAPE", this);
+    m_ledTapeStatus->setStyleSheet(grayStyle);
+    m_ledTapeStatus->setAlignment(Qt::AlignCenter);
+    
+    m_ledDriveStatus = new QLabel("DRV", this);
+    m_ledDriveStatus->setStyleSheet(grayStyle);
+    m_ledDriveStatus->setAlignment(Qt::AlignCenter);
+    
+    m_ledActivity = new QLabel("ACT", this);
+    m_ledActivity->setStyleSheet(grayStyle);
+    m_ledActivity->setAlignment(Qt::AlignCenter);
+    
+    ui->statusbar->addPermanentWidget(m_ledOpStatus);
+    ui->statusbar->addPermanentWidget(m_ledEncryption);
+    ui->statusbar->addPermanentWidget(m_ledCleaning);
+    ui->statusbar->addPermanentWidget(m_ledTapeStatus);
+    ui->statusbar->addPermanentWidget(m_ledDriveStatus);
+    ui->statusbar->addPermanentWidget(m_ledActivity);
+    
+    m_statusTimer = new QTimer(this);
+    connect(m_statusTimer, &QTimer::timeout, this, &MainWindow::onStatusTimerTick);
+    m_statusTimer->start(1000);
     
     connect(m_ltfsManager, &LtfsManager::operationFinished, this, &MainWindow::onLtfsOperationFinished);
     connect(m_ltfsManager, &LtfsManager::outputReceived, this, &MainWindow::onLtfsOutputReceived);
@@ -326,6 +365,93 @@ void MainWindow::onFilesDropped(const QStringList &files)
         dlg->show();
     }
 }
+
+void MainWindow::onStatusTimerTick()
+{
+    QString devicePath = getSelectedDevicePath();
+    if (devicePath.isEmpty()) {
+        // Reset to gray if no device selected
+        QString grayStyle = "QLabel { background-color: gray; color: white; padding: 2px; border-radius: 4px; min-width: 40px; alignment: center; }";
+        m_ledOpStatus->setStyleSheet(grayStyle);
+        m_ledEncryption->setStyleSheet(grayStyle);
+        m_ledCleaning->setStyleSheet(grayStyle);
+        m_ledTapeStatus->setStyleSheet(grayStyle);
+        m_ledDriveStatus->setStyleSheet(grayStyle);
+        m_ledActivity->setStyleSheet(grayStyle);
+        return;
+    }
+    
+    // We run this synchronously for now as it should be fast
+    VHFLogData vhf = m_deviceManager->getVHFLogPage(devicePath);
+    
+    if (!vhf.isValid) {
+        // Reset to gray if invalid
+        QString grayStyle = "QLabel { background-color: gray; color: white; padding: 2px; border-radius: 4px; min-width: 40px; alignment: center; }";
+        m_ledOpStatus->setStyleSheet(grayStyle);
+        m_ledEncryption->setStyleSheet(grayStyle);
+        m_ledCleaning->setStyleSheet(grayStyle);
+        m_ledTapeStatus->setStyleSheet(grayStyle);
+        m_ledDriveStatus->setStyleSheet(grayStyle);
+        m_ledActivity->setStyleSheet(grayStyle);
+        return;
+    }
+    
+    // Update LEDs based on VHF data
+    
+    // S1: Operation Status (Ready/Busy)
+    if (vhf.deviceActivity != 0 || vhf.inTransition) {
+        m_ledOpStatus->setStyleSheet("QLabel { background-color: orange; color: white; padding: 2px; border-radius: 4px; min-width: 40px; alignment: center; }");
+        m_ledOpStatus->setText("BUSY");
+    } else if (vhf.mediaPresent) {
+        m_ledOpStatus->setStyleSheet("QLabel { background-color: green; color: white; padding: 2px; border-radius: 4px; min-width: 40px; alignment: center; }");
+        m_ledOpStatus->setText("READY");
+    } else {
+        m_ledOpStatus->setStyleSheet("QLabel { background-color: gray; color: white; padding: 2px; border-radius: 4px; min-width: 40px; alignment: center; }");
+        m_ledOpStatus->setText("IDLE");
+    }
+    
+    // S2: Encryption (Not in VHF, need other page, skip for now or use gray)
+    m_ledEncryption->setStyleSheet("QLabel { background-color: gray; color: white; padding: 2px; border-radius: 4px; min-width: 40px; alignment: center; }");
+    
+    // S3: Cleaning
+    if (vhf.cleaningRequired || vhf.cleanRequested) {
+        m_ledCleaning->setStyleSheet("QLabel { background-color: orange; color: white; padding: 2px; border-radius: 4px; min-width: 40px; alignment: center; }");
+    } else {
+        m_ledCleaning->setStyleSheet("QLabel { background-color: gray; color: white; padding: 2px; border-radius: 4px; min-width: 40px; alignment: center; }");
+    }
+    
+    // S4: Tape Status (Media Present)
+    if (vhf.mediaPresent) {
+        if (vhf.mediaThreaded) {
+             m_ledTapeStatus->setStyleSheet("QLabel { background-color: green; color: white; padding: 2px; border-radius: 4px; min-width: 40px; alignment: center; }");
+        } else {
+             m_ledTapeStatus->setStyleSheet("QLabel { background-color: blue; color: white; padding: 2px; border-radius: 4px; min-width: 40px; alignment: center; }");
+        }
+    } else {
+        m_ledTapeStatus->setStyleSheet("QLabel { background-color: gray; color: white; padding: 2px; border-radius: 4px; min-width: 40px; alignment: center; }");
+    }
+    
+    // S5: Drive Status (Use Data Accessible as proxy for now)
+    if (vhf.dataAccessible) {
+        m_ledDriveStatus->setStyleSheet("QLabel { background-color: green; color: white; padding: 2px; border-radius: 4px; min-width: 40px; alignment: center; }");
+    } else {
+        m_ledDriveStatus->setStyleSheet("QLabel { background-color: gray; color: white; padding: 2px; border-radius: 4px; min-width: 40px; alignment: center; }");
+    }
+    
+    // S6: Activity (Blink if busy)
+    static bool blink = false;
+    blink = !blink;
+    if (vhf.deviceActivity != 0) {
+        if (blink) {
+            m_ledActivity->setStyleSheet("QLabel { background-color: lime; color: black; padding: 2px; border-radius: 4px; min-width: 40px; alignment: center; }");
+        } else {
+            m_ledActivity->setStyleSheet("QLabel { background-color: green; color: white; padding: 2px; border-radius: 4px; min-width: 40px; alignment: center; }");
+        }
+    } else {
+        m_ledActivity->setStyleSheet("QLabel { background-color: gray; color: white; padding: 2px; border-radius: 4px; min-width: 40px; alignment: center; }");
+    }
+}
+
 
 
 

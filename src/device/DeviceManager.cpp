@@ -833,3 +833,88 @@ bool DeviceManager::sendScsiCommandMac(const QString &devicePath, const std::vec
     return false;
 #endif
 }
+
+VHFLogData DeviceManager::getVHFLogPage(const QString &devicePath)
+{
+    VHFLogData vhf;
+    vhf.isValid = false;
+
+    // LOG SENSE (0x4D)
+    // Page Code: 0x11 (DT Device Status)
+    // PC: 1 (Current Cumulative) -> Byte 2 = (0x01 << 6) | 0x11 = 0x40 | 0x11 = 0x51
+    
+    std::vector<uint8_t> cdb(10);
+    cdb[0] = 0x4D; // LOG SENSE
+    cdb[1] = 0x00;
+    cdb[2] = 0x51; // PC=1, Page Code=0x11
+    cdb[3] = 0x00; // Subpage Code
+    cdb[7] = 0x00; // Allocation Length (MSB)
+    cdb[8] = 0xFF; // Allocation Length (LSB) - 255 bytes should be enough
+    
+    std::vector<uint8_t> data(255);
+    
+    // Use sendScsiCommand which handles platform specifics
+    if (sendScsiCommand(devicePath, cdb, ScsiDirection::In, data)) {
+        // Parse Log Page
+        // Header: 4 bytes
+        // Page Code (Byte 0) should be 0x11 (masked with 0x3F)
+        if (data.size() < 4 || (data[0] & 0x3F) != 0x11) {
+            return vhf;
+        }
+        
+        uint16_t pageLength = (data[2] << 8) | data[3];
+        // Ensure we have enough data
+        if (data.size() < 4 + pageLength) {
+            // Incomplete data, but we might have enough for what we need
+        }
+        
+        // Iterate parameters
+        size_t offset = 4;
+        while (offset + 4 <= data.size()) {
+            uint16_t paramCode = (data[offset] << 8) | data[offset+1];
+            uint8_t paramLen = data[offset+3];
+            
+            if (offset + 4 + paramLen > data.size()) break;
+            
+            if (paramCode == 0x0000) { // Very High Frequency Data
+                // Parse VHF Data
+                // Based on TapeUtils.vb:
+                // Byte 0:
+                // Bit 5: Clean Requested
+                // Bit 6: Cleaning Required
+                
+                // Byte 1:
+                // Bit 0: In Transition
+                // Bit 3: Media Present
+                // Bit 6: Media Threaded
+                // Bit 7: Data Accessible
+                
+                // Byte 2:
+                // DT Device Activity (Enum)
+                
+                if (paramLen >= 3) {
+                    uint8_t byte0 = data[offset + 4];
+                    uint8_t byte1 = data[offset + 5];
+                    uint8_t byte2 = data[offset + 6];
+                    
+                    vhf.cleanRequested = (byte0 >> 5) & 1;
+                    vhf.cleaningRequired = (byte0 >> 6) & 1;
+                    
+                    vhf.inTransition = (byte1 >> 0) & 1;
+                    vhf.mediaPresent = (byte1 >> 3) & 1;
+                    vhf.mediaThreaded = (byte1 >> 6) & 1;
+                    vhf.dataAccessible = (byte1 >> 7) & 1;
+                    
+                    vhf.deviceActivity = byte2; 
+                    
+                    vhf.isValid = true;
+                }
+            }
+            
+            offset += 4 + paramLen;
+        }
+    }
+    
+    return vhf;
+}
+

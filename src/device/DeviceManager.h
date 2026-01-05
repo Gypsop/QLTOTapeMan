@@ -44,6 +44,18 @@ struct TapeStatus {
     QString statusMessage; // Human readable status
 };
 
+struct VHFLogData {
+    bool cleanRequested = false;
+    bool cleaningRequired = false;
+    bool mediaPresent = false;
+    bool mediaThreaded = false;
+    bool dataAccessible = false;
+    bool writeProtect = false;
+    bool inTransition = false;
+    uint8_t deviceActivity = 0; // 0=No activity, 1=Cleaning, 2=Loading, 3=Unloading, 4=Reading, 5=Writing, etc.
+    bool isValid = false;
+};
+
 class DeviceManager : public QObject
 {
     Q_OBJECT
@@ -66,6 +78,7 @@ public:
     bool isDeviceOpen() const;
 
     TapeStatus getDeviceStatus(const QString &devicePath); // High-level status check
+    VHFLogData getVHFLogPage(const QString &devicePath); // Get Very High Frequency Log Page (0x11)
 
     bool isDeviceReady(const QString &devicePath);
     bool rewindDevice(const QString &devicePath);
