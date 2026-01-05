@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 #include "ui_MainWindow.h"
+#include "ui/SettingsDialog.h"
 #include <QMessageBox>
 #include <QInputDialog>
 #include <QFileDialog>
@@ -11,10 +12,15 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
     , m_deviceManager(new DeviceManager(this))
     , m_ltfsManager(new LtfsManager(this))
+    , m_indexManager(new IndexManager(this))
+    , m_fileBrowser(new FileBrowserWidget(this))
     , m_progressBar(new QProgressBar(this))
     , m_statusLabel(new QLabel(this))
 {
     ui->setupUi(this);
+    
+    // Add File Browser to Tab
+    ui->verticalLayout_Browser->addWidget(m_fileBrowser);
     
     // Setup Status Bar
     m_progressBar->setVisible(false);
@@ -175,6 +181,10 @@ void MainWindow::on_btnMount_clicked()
     QString path = getSelectedDevicePath();
     if (path.isEmpty()) return;
     
+    // Store Serial
+    QTreeWidgetItem *item = ui->treeDevices->currentItem();
+    if (item) m_currentMountSerial = item->text(3);
+    
     QString mountPoint;
 #ifdef Q_OS_WIN
     bool ok;
@@ -185,6 +195,7 @@ void MainWindow::on_btnMount_clicked()
     if (mountPoint.isEmpty()) return;
 #endif
 
+    m_currentMountPoint = mountPoint;
     setBusy(true, "Mounting LTFS...");
     m_ltfsManager->mount(path, mountPoint);
 }
@@ -226,3 +237,41 @@ void MainWindow::onLtfsOutputReceived(const QString &text)
     ui->textLog->insertPlainText(text);
     ui->textLog->moveCursor(QTextCursor::End);
 }
+
+void MainWindow::on_actionSettings_triggered()
+{
+    SettingsDialog dialog(this);
+    dialog.exec();
+}
+
+void MainWindow::on_actionExit_triggered()
+{
+    close();
+}
+
+void MainWindow::on_tabWidget_currentChanged(int index)
+{
+    if (index == 1) { // File Browser Tab
+        QTreeWidgetItem *item = ui->treeDevices->currentItem();
+        if (item) {
+            QString serial = item->text(3); // Serial Number column
+            if (!serial.isEmpty()) {
+                if (m_indexManager->hasIndex(serial)) {
+                    LtfsIndex ltfsIndex;
+                    if (m_indexManager->loadIndex(serial, ltfsIndex)) {
+                        m_fileBrowser->loadIndex(ltfsIndex);
+                    }
+                } else {
+                    m_fileBrowser->clear();
+                    QMessageBox::information(this, "No Index", "No index found for this tape (" + serial + ").\nPlease mount the tape to read its index.");
+                }
+            } else {
+                 m_fileBrowser->clear();
+            }
+        } else {
+            m_fileBrowser->clear();
+        }
+    }
+}
+
+

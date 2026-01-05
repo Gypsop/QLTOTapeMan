@@ -17,6 +17,19 @@ set(PROJECT_SOURCES
     src/device/DeviceManager.h
     src/device/LtfsManager.cpp
     src/device/LtfsManager.h
+    src/utils/SettingsManager.cpp
+    src/utils/SettingsManager.h
+    src/ui/SettingsDialog.cpp
+    src/ui/SettingsDialog.h
+    src/ui/SettingsDialog.ui
+    src/ui/FileBrowserWidget.cpp
+    src/ui/FileBrowserWidget.h
+    src/ui/FileBrowserWidget.ui
+    src/ltfs/LtfsElements.h
+    src/ltfs/LtfsIndexParser.cpp
+    src/ltfs/LtfsIndexParser.h
+    src/ltfs/IndexManager.cpp
+    src/ltfs/IndexManager.h
 )
 
 if(WIN32)

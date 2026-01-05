@@ -7,6 +7,8 @@
 #include <QFutureWatcher>
 #include "device/DeviceManager.h"
 #include "device/LtfsManager.h"
+#include "ltfs/IndexManager.h"
+#include "ui/FileBrowserWidget.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -37,10 +39,18 @@ private slots:
     // Async slots
     void onAsyncOperationFinished();
 
+    // Menu slots
+    void on_actionSettings_triggered();
+    void on_actionExit_triggered();
+    
+    void on_tabWidget_currentChanged(int index);
+
 private:
     Ui::MainWindow *ui;
     DeviceManager *m_deviceManager;
     LtfsManager *m_ltfsManager;
+    IndexManager *m_indexManager;
+    FileBrowserWidget *m_fileBrowser;
     
     // Status Bar Widgets
     QProgressBar *m_progressBar;
@@ -48,6 +58,10 @@ private:
     
     // Async Watcher
     QFutureWatcher<bool> m_futureWatcher;
+    
+    QString m_currentMountSerial;
+    QString m_currentMountPoint;
+
     QString m_currentAsyncOperation;
     
     QString getSelectedDevicePath();

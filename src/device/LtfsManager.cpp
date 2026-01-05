@@ -1,4 +1,5 @@
 #include "LtfsManager.h"
+#include "../utils/SettingsManager.h"
 #include <QDebug>
 #include <QDir>
 
@@ -8,16 +9,15 @@ LtfsManager::LtfsManager(QObject *parent) : QObject(parent)
 
 void LtfsManager::mount(const QString &devicePath, const QString &mountPoint)
 {
-    QString program;
+    QString program = SettingsManager::instance().ltfsBinaryPath();
+    if (program.isEmpty()) program = "ltfs";
+    
     QStringList args;
 
 #ifdef Q_OS_WIN
-    program = "ltfs.exe";
     // Windows syntax: ltfs <drive_letter> -o devname=<device_id>
-    // Assuming devicePath is the device index or ID.
     args << mountPoint << "-o" << QString("devname=%1").arg(devicePath);
 #else
-    program = "ltfs";
     // Linux/Mac syntax: ltfs -o devname=<device_path> <mount_point>
     args << "-o" << QString("devname=%1").arg(devicePath) << mountPoint;
 #endif
@@ -31,16 +31,9 @@ void LtfsManager::unmount(const QString &mountPoint)
     QStringList args;
 
 #ifdef Q_OS_WIN
-    // Windows: Usually just stop the service or kill the process, but standard way might be different.
-    // Often unmount is done by ejecting or specific tool.
-    // For now, we might need to kill the ltfs process associated with the drive, or use a specific unmount command if provided by the driver suite.
-    // A generic way is difficult on Windows without the specific driver API.
-    // Placeholder:
+    // Windows: Rough unmount
     program = "taskkill"; 
-    args << "/F" << "/IM" << "ltfs.exe"; // Very rough, kills all LTFS instances!
-#elif defined(Q_OS_MAC)
-    program = "umount";
-    args << mountPoint;
+    args << "/F" << "/IM" << "ltfs.exe"; 
 #else
     program = "umount";
     args << mountPoint;
@@ -51,15 +44,14 @@ void LtfsManager::unmount(const QString &mountPoint)
 
 void LtfsManager::format(const QString &devicePath, const QString &volumeName)
 {
-    QString program;
+    QString program = SettingsManager::instance().mkltfsBinaryPath();
+    if (program.isEmpty()) program = "mkltfs";
+    
     QStringList args;
-
+    
 #ifdef Q_OS_WIN
-    program = "mkltfs.exe";
     args << "-d" << devicePath << "-n" << volumeName;
 #else
-    program = "mkltfs";
-    args << "-d" << devicePath << "-n" << volumeName;
 #endif
 
     runProcess(program, args, "Format");
