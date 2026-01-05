@@ -86,6 +86,7 @@ private:
     QString getSelectedDevicePath();
     void logMessage(const QString &message);
     void setBusy(bool busy, const QString &message = QString());
+    void setLedStatus(QLabel *label, const QString &color, const QString &text = QString(), const QString &textColor = "white");
     
 private slots:
     void onStatusTimerTick();

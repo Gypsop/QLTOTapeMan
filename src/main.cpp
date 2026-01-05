@@ -2,10 +2,13 @@
 #include "Version.h"
 
 #include <QApplication>
+#include <QStyleFactory>
 
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
+    a.setStyle(QStyleFactory::create("Fusion"));
+    
     a.setApplicationName(APP_NAME);
     a.setApplicationVersion(APP_VERSION);
     a.setOrganizationName(APP_ORG);
