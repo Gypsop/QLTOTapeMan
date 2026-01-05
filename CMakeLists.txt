@@ -42,6 +42,8 @@ set(PROJECT_SOURCES
     src/ui/TransferDialog.h
     src/ui/DeviceStatusDialog.cpp
     src/ui/DeviceStatusDialog.h
+    src/ui/DeviceStatusWidget.cpp
+    src/ui/DeviceStatusWidget.h
 )
 
 if(WIN32)

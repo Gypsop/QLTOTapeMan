@@ -64,14 +64,6 @@ private:
     QLabel *m_statusLabel;
     QPushButton *m_btnStop; // Global Stop Button
     
-    // Status LED Labels
-    QLabel *m_ledOpStatus; // S1
-    QLabel *m_ledEncryption; // S2
-    QLabel *m_ledCleaning; // S3
-    QLabel *m_ledTapeStatus; // S4
-    QLabel *m_ledDriveStatus; // S5
-    QLabel *m_ledActivity; // S6
-    
     QTimer *m_statusTimer;
     
     // Async Watcher
@@ -86,7 +78,6 @@ private:
     QString getSelectedDevicePath();
     void logMessage(const QString &message);
     void setBusy(bool busy, const QString &message = QString());
-    void setLedStatus(QLabel *label, const QString &color, const QString &text = QString(), const QString &textColor = "white");
     
 private slots:
     void onStatusTimerTick();

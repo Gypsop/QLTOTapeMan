@@ -3,6 +3,7 @@
 #include "ui/SettingsDialog.h"
 #include "ui/AboutDialog.h"
 #include "ui/TransferDialog.h"
+#include "ui/DeviceStatusWidget.h"
 #include <QMessageBox>
 #include <QInputDialog>
 #include <QFileDialog>
@@ -43,32 +44,6 @@ MainWindow::MainWindow(QWidget *parent)
     m_btnStop->setEnabled(false); // Disabled by default
     connect(m_btnStop, &QPushButton::clicked, this, &MainWindow::onStopClicked);
     ui->statusbar->addPermanentWidget(m_btnStop);
-    
-    // Setup LED Labels
-    m_ledOpStatus = new QLabel("OP", this);
-    setLedStatus(m_ledOpStatus, "gray");
-    
-    m_ledEncryption = new QLabel("ENC", this);
-    setLedStatus(m_ledEncryption, "gray");
-    
-    m_ledCleaning = new QLabel("CLN", this);
-    setLedStatus(m_ledCleaning, "gray");
-    
-    m_ledTapeStatus = new QLabel("TAPE", this);
-    setLedStatus(m_ledTapeStatus, "gray");
-    
-    m_ledDriveStatus = new QLabel("DRV", this);
-    setLedStatus(m_ledDriveStatus, "gray");
-    
-    m_ledActivity = new QLabel("ACT", this);
-    setLedStatus(m_ledActivity, "gray");
-    
-    ui->statusbar->addPermanentWidget(m_ledOpStatus);
-    ui->statusbar->addPermanentWidget(m_ledEncryption);
-    ui->statusbar->addPermanentWidget(m_ledCleaning);
-    ui->statusbar->addPermanentWidget(m_ledTapeStatus);
-    ui->statusbar->addPermanentWidget(m_ledDriveStatus);
-    ui->statusbar->addPermanentWidget(m_ledActivity);
     
     m_statusTimer = new QTimer(this);
     connect(m_statusTimer, &QTimer::timeout, this, &MainWindow::onStatusTimerTick);
@@ -146,6 +121,9 @@ void MainWindow::on_btnScan_clicked()
         item->setText(1, device.vendorId);
         item->setText(2, device.productId);
         item->setText(3, device.serialNumber);
+        
+        DeviceStatusWidget *statusWidget = new DeviceStatusWidget(ui->treeDevices);
+        ui->treeDevices->setItemWidget(item, 4, statusWidget);
     }
     
     if (devices.isEmpty()) {
@@ -415,94 +393,77 @@ void MainWindow::onFilesDropped(const QStringList &files)
     }
 }
 
-void MainWindow::setLedStatus(QLabel *label, const QString &color, const QString &text, const QString &textColor)
-{
-    QString style = QString("QLabel { background-color: %1; color: %2; padding: 2px; border-radius: 4px; min-width: 40px; qproperty-alignment: AlignCenter; }")
-                        .arg(color, textColor);
-    label->setStyleSheet(style);
-    if (!text.isEmpty()) {
-        label->setText(text);
-    }
-}
-
 void MainWindow::onStatusTimerTick()
 {
-    QString devicePath = getSelectedDevicePath();
-    if (devicePath.isEmpty()) {
-        // Reset LEDs
-        setLedStatus(m_ledOpStatus, "gray");
-        setLedStatus(m_ledEncryption, "gray");
-        setLedStatus(m_ledCleaning, "gray");
-        setLedStatus(m_ledTapeStatus, "gray");
-        setLedStatus(m_ledDriveStatus, "gray");
-        setLedStatus(m_ledActivity, "gray");
-        return;
-    }
-    
-    // We run this synchronously for now as it should be fast
-    VHFLogData vhf = m_deviceManager->getVHFLogPage(devicePath);
-    
-    if (!vhf.isValid) {
-        // Reset to gray if invalid
-        setLedStatus(m_ledOpStatus, "gray");
-        setLedStatus(m_ledEncryption, "gray");
-        setLedStatus(m_ledCleaning, "gray");
-        setLedStatus(m_ledTapeStatus, "gray");
-        setLedStatus(m_ledDriveStatus, "gray");
-        setLedStatus(m_ledActivity, "gray");
-        return;
-    }
-    
-    // Update LEDs based on VHF data
-    
-    // S1: Operation Status (Ready/Busy)
-    if (vhf.deviceActivity != 0 || vhf.inTransition) {
-        setLedStatus(m_ledOpStatus, "orange", "BUSY");
-    } else if (vhf.mediaPresent) {
-        setLedStatus(m_ledOpStatus, "green", "READY");
-    } else {
-        setLedStatus(m_ledOpStatus, "gray", "IDLE");
-    }
-    
-    // S2: Encryption
-    setLedStatus(m_ledEncryption, "gray");
-    
-    // S3: Cleaning
-    if (vhf.cleaningRequired || vhf.cleanRequested) {
-        setLedStatus(m_ledCleaning, "orange");
-    } else {
-        setLedStatus(m_ledCleaning, "gray");
-    }
-    
-    // S4: Tape Status (Media Present)
-    if (vhf.mediaPresent) {
-        if (vhf.mediaThreaded) {
-             setLedStatus(m_ledTapeStatus, "green");
-        } else {
-             setLedStatus(m_ledTapeStatus, "blue");
+    // Iterate over all devices in the tree and update their status
+    for (int i = 0; i < ui->treeDevices->topLevelItemCount(); ++i) {
+        QTreeWidgetItem *item = ui->treeDevices->topLevelItem(i);
+        QString devicePath = item->text(0);
+        DeviceStatusWidget *statusWidget = qobject_cast<DeviceStatusWidget*>(ui->treeDevices->itemWidget(item, 4));
+        
+        if (!statusWidget) continue;
+        
+        // We run this synchronously for now as it should be fast
+        // Note: If we have many devices, this might block UI. 
+        // Ideally we should use async or a separate thread for polling.
+        VHFLogData vhf = m_deviceManager->getVHFLogPage(devicePath);
+        
+        if (!vhf.isValid) {
+            statusWidget->reset();
+            continue;
         }
-    } else {
-        setLedStatus(m_ledTapeStatus, "gray");
-    }
-    
-    // S5: Drive Status
-    if (vhf.dataAccessible) {
-        setLedStatus(m_ledDriveStatus, "green");
-    } else {
-        setLedStatus(m_ledDriveStatus, "gray");
-    }
-    
-    // S6: Activity (Blink if busy)
-    static bool blink = false;
-    blink = !blink;
-    if (vhf.deviceActivity != 0) {
-        if (blink) {
-            setLedStatus(m_ledActivity, "lime", QString(), "black");
+        
+        // Update LEDs based on VHF data
+        
+        // S1: Operation Status (Ready/Busy)
+        if (vhf.deviceActivity != 0 || vhf.inTransition) {
+            statusWidget->setStatus("OP", "orange", "BUSY");
+        } else if (vhf.mediaPresent) {
+            statusWidget->setStatus("OP", "green", "READY");
         } else {
-            setLedStatus(m_ledActivity, "green");
+            statusWidget->setStatus("OP", "gray", "IDLE");
         }
-    } else {
-        setLedStatus(m_ledActivity, "gray");
+        
+        // S2: Encryption
+        statusWidget->setStatus("ENC", "gray");
+        
+        // S3: Cleaning
+        if (vhf.cleaningRequired || vhf.cleanRequested) {
+            statusWidget->setStatus("CLN", "orange");
+        } else {
+            statusWidget->setStatus("CLN", "gray");
+        }
+        
+        // S4: Tape Status (Media Present)
+        if (vhf.mediaPresent) {
+            if (vhf.mediaThreaded) {
+                 statusWidget->setStatus("TAPE", "green");
+            } else {
+                 statusWidget->setStatus("TAPE", "blue");
+            }
+        } else {
+            statusWidget->setStatus("TAPE", "gray");
+        }
+        
+        // S5: Drive Status
+        if (vhf.dataAccessible) {
+            statusWidget->setStatus("DRV", "green");
+        } else {
+            statusWidget->setStatus("DRV", "gray");
+        }
+        
+        // S6: Activity (Blink if busy)
+        static bool blink = false;
+        blink = !blink;
+        if (vhf.deviceActivity != 0) {
+            if (blink) {
+                statusWidget->setStatus("ACT", "lime", QString(), "black");
+            } else {
+                statusWidget->setStatus("ACT", "green");
+            }
+        } else {
+            statusWidget->setStatus("ACT", "gray");
+        }
     }
 }
 
