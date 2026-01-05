@@ -2,6 +2,7 @@
 #define ABOUTDIALOG_H
 
 #include <QDialog>
+#include <QTableWidget>
 
 namespace Ui {
 class AboutDialog;
@@ -17,10 +18,16 @@ public:
 
 private:
     Ui::AboutDialog *ui;
+    QTableWidget *m_sysTable;
+    QTableWidget *m_ltfsTable;
+    
+    void setupUiCustom();
+    QTableWidget* createGroupTable(const QString &title, QWidget *parentLayoutWidget);
+    void addRowToTable(QTableWidget *table, const QString &key, const QString &value, bool isError = false);
     
     void collectSystemInfo();
     QString getOsInfo();
-    QString getLtfsVersion();
+    void getLtfsVersion();
     QString getHardwareInfo();
 };
 

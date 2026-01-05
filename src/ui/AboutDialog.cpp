@@ -5,6 +5,9 @@
 #include <QSysInfo>
 #include <QProcess>
 #include <QDebug>
+#include <QHeaderView>
+#include <QGroupBox>
+#include <QVBoxLayout>
 
 AboutDialog::AboutDialog(QWidget *parent) :
     QDialog(parent),
@@ -13,6 +16,8 @@ AboutDialog::AboutDialog(QWidget *parent) :
     ui->setupUi(this);
     ui->lblVersion->setText(QString("Version %1").arg(APP_VERSION));
     ui->lblOrg->setText(APP_ORG);
+    
+    setupUiCustom();
     collectSystemInfo();
 }
 
@@ -21,33 +26,92 @@ AboutDialog::~AboutDialog()
     delete ui;
 }
 
+void AboutDialog::setupUiCustom()
+{
+    // Remove the old text browser from the layout and delete it
+    if (ui->textSystemInfo) {
+        ui->tabSystem->layout()->removeWidget(ui->textSystemInfo);
+        delete ui->textSystemInfo;
+        ui->textSystemInfo = nullptr;
+    }
+
+    // Create tables within groups
+    m_sysTable = createGroupTable("System Information", ui->tabSystem);
+    m_ltfsTable = createGroupTable("LTFS Tools", ui->tabSystem);
+    
+    // Add spacer to push everything up
+    QVBoxLayout *layout = qobject_cast<QVBoxLayout*>(ui->tabSystem->layout());
+    if (layout) {
+        layout->addStretch();
+    }
+}
+
+QTableWidget* AboutDialog::createGroupTable(const QString &title, QWidget *parentLayoutWidget)
+{
+    QGroupBox *groupBox = new QGroupBox(title, parentLayoutWidget);
+    QVBoxLayout *groupLayout = new QVBoxLayout(groupBox);
+    
+    QTableWidget *table = new QTableWidget(groupBox);
+    table->setColumnCount(2);
+    table->setHorizontalHeaderLabels({"Item", "Value"});
+    table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    table->verticalHeader()->setVisible(false);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table->setAlternatingRowColors(true);
+    table->setStyleSheet("QTableWidget { border: none; background-color: transparent; }");
+    // Set a fixed height based on rows later, or minimum height
+    table->setMinimumHeight(100); 
+    
+    groupLayout->addWidget(table);
+    parentLayoutWidget->layout()->addWidget(groupBox);
+    
+    return table;
+}
+
+void AboutDialog::addRowToTable(QTableWidget *table, const QString &key, const QString &value, bool isError)
+{
+    int row = table->rowCount();
+    table->insertRow(row);
+    
+    QTableWidgetItem *itemKey = new QTableWidgetItem(key);
+    QTableWidgetItem *itemValue = new QTableWidgetItem(value);
+    
+    // Bold font for key
+    QFont font = itemKey->font();
+    font.setBold(true);
+    itemKey->setFont(font);
+    
+    if (isError) {
+        itemValue->setForeground(Qt::red);
+    }
+    
+    table->setItem(row, 0, itemKey);
+    table->setItem(row, 1, itemValue);
+    
+    // Adjust height to fit content roughly (optional, but helps avoid scrollbars for small tables)
+    int height = table->horizontalHeader()->height();
+    for (int i = 0; i < table->rowCount(); ++i) height += table->rowHeight(i);
+    table->setMinimumHeight(height + 10); // buffer
+    table->setMaximumHeight(height + 10);
+}
+
 void AboutDialog::collectSystemInfo()
 {
-    // --- Tab 1: System & Tools ---
-    QString html = "<style>"
-                   "table { border-collapse: collapse; width: 100%; }"
-                   "td, th { border: 1px solid #ddd; padding: 8px; }"
-                   "tr:nth-child(even){background-color: #f2f2f2;}"
-                   "th { padding-top: 12px; padding-bottom: 12px; text-align: left; background-color: #04AA6D; color: white; }"
-                   "</style>";
+    m_sysTable->setRowCount(0);
+    m_ltfsTable->setRowCount(0);
     
-    html += "<h3>System Information</h3>";
-    html += "<table>";
-    html += QString("<tr><td><b>OS</b></td><td>%1</td></tr>").arg(getOsInfo());
-    html += QString("<tr><td><b>Qt Version</b></td><td>%1</td></tr>").arg(qVersion());
-    html += QString("<tr><td><b>Architecture</b></td><td>%1</td></tr>").arg(QSysInfo::currentCpuArchitecture());
-    html += "</table>";
+    // System Info
+    addRowToTable(m_sysTable, "OS", getOsInfo());
+    addRowToTable(m_sysTable, "Qt Version", qVersion());
+    addRowToTable(m_sysTable, "Architecture", QSysInfo::currentCpuArchitecture());
     
-    html += "<h3>LTFS Tools</h3>";
-    html += "<table>";
-    html += getLtfsVersion();
-    html += "</table>";
+    // LTFS Tools
+    getLtfsVersion();
     
-    ui->textSystemInfo->setHtml(html);
-    
-    // --- Tab 2: Hardware ---
+    // Hardware Info (Fix: Restore this call)
     ui->textHardwareInfo->setPlainText("Scanning hardware...\n");
-    // We can do this async later, but for now sync is fine as it's a dialog
     ui->textHardwareInfo->setPlainText(getHardwareInfo());
 }
 
@@ -56,9 +120,8 @@ QString AboutDialog::getOsInfo()
     return QSysInfo::prettyProductName();
 }
 
-QString AboutDialog::getLtfsVersion()
+void AboutDialog::getLtfsVersion()
 {
-    QString rows;
     QString ltfsPath = SettingsManager::instance().ltfsBinaryPath();
     if (ltfsPath.isEmpty()) ltfsPath = "ltfs";
     
@@ -66,9 +129,9 @@ QString AboutDialog::getLtfsVersion()
     process.start(ltfsPath, QStringList() << "--version");
     if (process.waitForFinished(1000)) {
         QString output = process.readAllStandardOutput();
-        rows += QString("<tr><td><b>ltfs</b></td><td>%1</td></tr>").arg(output.split('\n').first());
+        addRowToTable(m_ltfsTable, "ltfs binary", output.split('\n').first().trimmed());
     } else {
-        rows += "<tr><td><b>ltfs</b></td><td><font color='red'>Not found</font></td></tr>";
+        addRowToTable(m_ltfsTable, "ltfs binary", "Not found", true);
     }
     
     QString mkltfsPath = SettingsManager::instance().mkltfsBinaryPath();
@@ -77,12 +140,21 @@ QString AboutDialog::getLtfsVersion()
     process.start(mkltfsPath, QStringList() << "--version");
     if (process.waitForFinished(1000)) {
         QString output = process.readAllStandardOutput();
-        rows += QString("<tr><td><b>mkltfs</b></td><td>%1</td></tr>").arg(output.split('\n').first());
+        addRowToTable(m_ltfsTable, "mkltfs binary", output.split('\n').first().trimmed());
     } else {
-        rows += "<tr><td><b>mkltfs</b></td><td><font color='red'>Not found</font></td></tr>";
+        addRowToTable(m_ltfsTable, "mkltfs binary", "Not found", true);
     }
     
-    return rows;
+    QString ltfsckPath = SettingsManager::instance().ltfsckBinaryPath();
+    if (ltfsckPath.isEmpty()) ltfsckPath = "ltfsck";
+    
+    process.start(ltfsckPath, QStringList() << "--version");
+    if (process.waitForFinished(1000)) {
+        QString output = process.readAllStandardOutput();
+        addRowToTable(m_ltfsTable, "ltfsck binary", output.split('\n').first().trimmed());
+    } else {
+        addRowToTable(m_ltfsTable, "ltfsck binary", "Not found", true);
+    }
 }
 
 QString AboutDialog::getHardwareInfo()
