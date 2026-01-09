@@ -12,6 +12,7 @@
 #include <QtGlobal>
 #include <QMetaObject>
 #include <functional>
+#include <thread>
 #include <QFileInfo>
 
 #include "../core/ltfs_service.h"

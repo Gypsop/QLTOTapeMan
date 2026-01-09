@@ -4,6 +4,8 @@
 #include <QStandardItemModel>
 #include <memory>
 
+#include "../io/tape_device.h"
+
 namespace Ui {
 class MainWindow;
 }
