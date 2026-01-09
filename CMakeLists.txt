@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(QLTOTapeMan VERSION 0.1.0 LANGUAGES CXX)
+project(QLTOTapeMan VERSION 0.0.1.20260109 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -32,6 +32,8 @@ set(PROJECT_SOURCES
     src/Version.h
     src/ltfs/LtfsIndexParser.cpp
     src/ltfs/LtfsIndexParser.h
+    src/ltfs/LtfsVolumeManager.cpp
+    src/ltfs/LtfsVolumeManager.h
     src/ltfs/IndexManager.cpp
     src/ltfs/IndexManager.h
     src/transfer/RingBuffer.cpp
@@ -40,6 +42,8 @@ set(PROJECT_SOURCES
     src/transfer/TransferEngine.h
     src/ui/TransferDialog.cpp
     src/ui/TransferDialog.h
+    src/ui/DirectRWDialog.cpp
+    src/ui/DirectRWDialog.h
     src/ui/DeviceStatusDialog.cpp
     src/ui/DeviceStatusDialog.h
     src/ui/DeviceStatusWidget.cpp

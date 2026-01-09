@@ -20,6 +20,7 @@
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <scsi/sg.h>
+#include <errno.h>
 #endif
 
 #ifdef Q_OS_MAC
@@ -34,9 +35,67 @@ DeviceManager::DeviceManager(QObject *parent) : QObject(parent)
 {
 #ifdef Q_OS_WIN
     m_deviceHandle = INVALID_HANDLE_VALUE;
+#elif defined(Q_OS_LINUX)
+    m_deviceHandle = reinterpret_cast<void*>(-1);
 #else
     m_deviceHandle = nullptr;
 #endif
+}
+
+DeviceManager::HandleEntry* DeviceManager::getHandle(int handleId)
+{
+    auto it = m_handles.find(handleId);
+    if (it == m_handles.end()) return nullptr;
+    return &it.value();
+}
+
+int DeviceManager::openHandle(const QString &devicePath)
+{
+#ifdef Q_OS_WIN
+    HANDLE hDevice = CreateFile(reinterpret_cast<LPCWSTR>(devicePath.utf16()), 
+                              GENERIC_READ | GENERIC_WRITE, 
+                              FILE_SHARE_READ | FILE_SHARE_WRITE, 
+                              NULL, 
+                              OPEN_EXISTING, 
+                              0, 
+                              NULL);
+    if (hDevice == INVALID_HANDLE_VALUE) return -1;
+    int id = m_nextHandleId++;
+    HandleEntry e; e.path = devicePath; e.nativeHandle = hDevice;
+    m_handles.insert(id, e);
+    return id;
+#elif defined(Q_OS_LINUX)
+    int fd = ::open(devicePath.toLatin1().constData(), O_RDWR | O_NONBLOCK);
+    if (fd < 0) return -1;
+    int id = m_nextHandleId++;
+    HandleEntry e; e.path = devicePath; e.nativeHandle = reinterpret_cast<void*>(static_cast<intptr_t>(fd));
+    m_handles.insert(id, e);
+    return id;
+#else
+    Q_UNUSED(devicePath);
+    return -1;
+#endif
+}
+
+void DeviceManager::closeHandle(int handleId)
+{
+    HandleEntry* h = getHandle(handleId);
+    if (!h) return;
+#ifdef Q_OS_WIN
+    if (h->nativeHandle && h->nativeHandle != INVALID_HANDLE_VALUE) {
+        CloseHandle(static_cast<HANDLE>(h->nativeHandle));
+    }
+#elif defined(Q_OS_LINUX)
+    if (h->nativeHandle && reinterpret_cast<intptr_t>(h->nativeHandle) != -1) {
+        ::close(static_cast<int>(reinterpret_cast<intptr_t>(h->nativeHandle)));
+    }
+#endif
+    m_handles.remove(handleId);
+}
+
+bool DeviceManager::isHandleOpen(int handleId) const
+{
+    return m_handles.contains(handleId);
 }
 
 bool DeviceManager::openDevice(const QString &devicePath)
@@ -57,6 +116,13 @@ bool DeviceManager::openDevice(const QString &devicePath)
         m_currentDevicePath = devicePath;
         return true;
     }
+#elif defined(Q_OS_LINUX)
+    int fd = ::open(devicePath.toLatin1().constData(), O_RDWR | O_NONBLOCK);
+    if (fd >= 0) {
+        m_deviceHandle = reinterpret_cast<void*>(static_cast<intptr_t>(fd));
+        m_currentDevicePath = devicePath;
+        return true;
+    }
 #endif
     return false;
 }
@@ -68,6 +134,11 @@ void DeviceManager::closeDevice()
         CloseHandle(static_cast<HANDLE>(m_deviceHandle));
         m_deviceHandle = INVALID_HANDLE_VALUE;
     }
+#elif defined(Q_OS_LINUX)
+    if (m_deviceHandle && reinterpret_cast<intptr_t>(m_deviceHandle) != -1) {
+        ::close(static_cast<int>(reinterpret_cast<intptr_t>(m_deviceHandle)));
+        m_deviceHandle = reinterpret_cast<void*>(-1);
+    }
 #endif
     m_currentDevicePath.clear();
 }
@@ -76,6 +147,8 @@ bool DeviceManager::isDeviceOpen() const
 {
 #ifdef Q_OS_WIN
     return m_deviceHandle != INVALID_HANDLE_VALUE;
+#elif defined(Q_OS_LINUX)
+    return m_deviceHandle && reinterpret_cast<intptr_t>(m_deviceHandle) != -1;
 #else
     return m_deviceHandle != nullptr;
 #endif
@@ -205,6 +278,12 @@ TapeStatus DeviceManager::getDeviceStatus(const QString &devicePath)
     return status;
 }
 
+TapeStatus DeviceManager::getDeviceStatusHandle(int handleId, const QString &devicePath)
+{
+    Q_UNUSED(handleId);
+    return getDeviceStatus(devicePath);
+}
+
 bool DeviceManager::synchronizeCache()
 {
     if (!isDeviceOpen()) return false;
@@ -215,6 +294,165 @@ bool DeviceManager::synchronizeCache()
     
     std::vector<uint8_t> data;
     return sendScsiCommand(m_currentDevicePath, cdb, ScsiDirection::None, data, 60000);
+}
+
+bool DeviceManager::createPartitionHandle(int handleId, uint8_t method, uint16_t sizeMB)
+{
+    std::vector<uint8_t> cdb(6);
+    cdb[0] = 0x04;
+    cdb[1] = 0x00;
+    cdb[2] = 0x01;
+
+    uint8_t transferLengthMsb = 0;
+    uint8_t transferLengthLsb = 8;
+    cdb[3] = transferLengthMsb;
+    cdb[4] = transferLengthLsb;
+
+    std::vector<uint8_t> data(8, 0);
+    data[0] = 0x00;
+    data[1] = method & 0x03;
+    data[2] = (sizeMB >> 8) & 0xFF;
+    data[3] = sizeMB & 0xFF;
+    return sendScsiCommandHandle(handleId, cdb, ScsiDirection::Out, data, 60000);
+}
+
+bool DeviceManager::synchronizeCacheHandle(int handleId)
+{
+    std::vector<uint8_t> cdb(10, 0);
+    cdb[0] = 0x35;
+    std::vector<uint8_t> data;
+    return sendScsiCommandHandle(handleId, cdb, ScsiDirection::None, data, 60000);
+}
+
+DeviceManager::ScsiWriteResult DeviceManager::writeScsiBlockHandle(int handleId, const QByteArray &data)
+{
+    ScsiWriteResult result;
+    HandleEntry* h = getHandle(handleId);
+    if (!h) {
+        result.isError = true;
+        result.errorMessage = "Invalid handle";
+        return result;
+    }
+
+#ifdef Q_OS_WIN
+    std::vector<uint8_t> cdb(6);
+    cdb[0] = 0x0A;
+    uint32_t len = data.size();
+    cdb[2] = (len >> 16) & 0xFF;
+    cdb[3] = (len >> 8) & 0xFF;
+    cdb[4] = len & 0xFF;
+
+    struct SCSI_PASS_THROUGH_DIRECT_WITH_BUFFER {
+        SCSI_PASS_THROUGH_DIRECT sptd;
+        ULONG             Filler;
+        UCHAR             ucSenseBuf[64];
+    } swb;
+
+    ZeroMemory(&swb, sizeof(swb));
+
+    swb.sptd.Length = sizeof(SCSI_PASS_THROUGH_DIRECT);
+    swb.sptd.CdbLength = 6;
+    swb.sptd.SenseInfoLength = sizeof(swb.ucSenseBuf);
+    swb.sptd.DataIn = SCSI_IOCTL_DATA_OUT;
+    swb.sptd.DataTransferLength = len;
+    swb.sptd.TimeOutValue = 60;
+    swb.sptd.DataBuffer = const_cast<char*>(data.data());
+    swb.sptd.SenseInfoOffset = offsetof(SCSI_PASS_THROUGH_DIRECT_WITH_BUFFER, ucSenseBuf);
+    memcpy(swb.sptd.Cdb, cdb.data(), 6);
+
+    DWORD bytesReturned;
+    BOOL ioResult = DeviceIoControl(static_cast<HANDLE>(h->nativeHandle),
+                                IOCTL_SCSI_PASS_THROUGH_DIRECT,
+                                &swb,
+                                sizeof(swb),
+                                &swb,
+                                sizeof(swb),
+                                &bytesReturned,
+                                NULL);
+
+    if (!ioResult) {
+        result.isError = true;
+        result.errorMessage = QString("Write failed. Error: %1").arg(GetLastError());
+        return result;
+    }
+
+    if (swb.sptd.ScsiStatus == SCSISTAT_CHECK_CONDITION) {
+        ScsiSenseData* sense = reinterpret_cast<ScsiSenseData*>(swb.ucSenseBuf);
+        if (sense->isValid()) {
+            if (sense->isEOM()) result.isEOM = true;
+            uint8_t key = sense->senseKey();
+            if (key != 0x00 && key != 0x01) {
+                 result.isError = true;
+                 result.errorMessage = QString("SCSI Write Error. Key: %1, ASC: %2, ASCQ: %3")
+                                        .arg(key, 2, 16, QChar('0'))
+                                        .arg(sense->ASC, 2, 16, QChar('0'))
+                                        .arg(sense->ASCQ, 2, 16, QChar('0'));
+            }
+        }
+    } else if (swb.sptd.ScsiStatus != SCSISTAT_GOOD) {
+        result.isError = true;
+        result.errorMessage = QString("SCSI Status Error: %1").arg(swb.sptd.ScsiStatus);
+    }
+
+    return result;
+#elif defined(Q_OS_LINUX)
+    int fd = static_cast<int>(reinterpret_cast<intptr_t>(h->nativeHandle));
+    if (fd < 0) {
+        result.isError = true;
+        result.errorMessage = "Invalid device handle";
+        return result;
+    }
+
+    std::vector<uint8_t> cdb(6);
+    cdb[0] = SCSIOP_WRITE_6;
+    uint32_t len = data.size();
+    cdb[2] = (len >> 16) & 0xFF;
+    cdb[3] = (len >> 8) & 0xFF;
+    cdb[4] = len & 0xFF;
+
+    sg_io_hdr_t io_hdr;
+    memset(&io_hdr, 0, sizeof(io_hdr));
+    io_hdr.interface_id = 'S';
+    io_hdr.cmd_len = cdb.size();
+    io_hdr.mx_sb_len = 64;
+    io_hdr.dxfer_direction = SG_DXFER_TO_DEV;
+    io_hdr.dxfer_len = data.size();
+    io_hdr.dxferp = const_cast<char*>(data.data());
+    io_hdr.cmdp = cdb.data();
+    unsigned char sense_buffer[64] = {0};
+    io_hdr.sbp = sense_buffer;
+    io_hdr.timeout = 60000;
+
+    if (ioctl(fd, SG_IO, &io_hdr) < 0) {
+        result.isError = true;
+        result.errorMessage = QString("SG_IO write failed: %1").arg(errno);
+        return result;
+    }
+
+    if (io_hdr.status == SCSISTAT_CHECK_CONDITION) {
+        ScsiSenseData* sense = reinterpret_cast<ScsiSenseData*>(sense_buffer);
+        if (sense->isValid()) {
+            if (sense->isEOM()) result.isEOM = true;
+            uint8_t key = sense->senseKey();
+            if (key != 0x00 && key != 0x01) {
+                result.isError = true;
+                result.errorMessage = QString("SCSI Write Error. Key: %1, ASC: %2, ASCQ: %3")
+                                        .arg(key, 2, 16, QChar('0'))
+                                        .arg(sense->ASC, 2, 16, QChar('0'))
+                                        .arg(sense->ASCQ, 2, 16, QChar('0'));
+            }
+        }
+    } else if (io_hdr.status != SCSISTAT_GOOD) {
+        result.isError = true;
+        result.errorMessage = QString("SCSI Status Error: %1").arg(io_hdr.status);
+    }
+
+    return result;
+#else
+    result.isError = true;
+    result.errorMessage = "Not implemented for this OS";
+    return result;
+#endif
 }
 
 DeviceManager::ScsiWriteResult DeviceManager::writeScsiBlock(const QByteArray &data)
@@ -293,6 +531,219 @@ DeviceManager::ScsiWriteResult DeviceManager::writeScsiBlock(const QByteArray &d
         result.errorMessage = QString("SCSI Status Error: %1").arg(swb.sptd.ScsiStatus);
     }
     
+    return result;
+#elif defined(Q_OS_LINUX)
+    int fd = static_cast<int>(reinterpret_cast<intptr_t>(m_deviceHandle));
+    if (fd < 0) {
+        result.isError = true;
+        result.errorMessage = "Invalid device handle";
+        return result;
+    }
+
+    std::vector<uint8_t> cdb(6);
+    cdb[0] = SCSIOP_WRITE_6;
+    uint32_t len = data.size();
+    cdb[2] = (len >> 16) & 0xFF;
+    cdb[3] = (len >> 8) & 0xFF;
+    cdb[4] = len & 0xFF;
+
+    sg_io_hdr_t io_hdr;
+    memset(&io_hdr, 0, sizeof(io_hdr));
+    io_hdr.interface_id = 'S';
+    io_hdr.cmd_len = cdb.size();
+    io_hdr.mx_sb_len = 64;
+    io_hdr.dxfer_direction = SG_DXFER_TO_DEV;
+    io_hdr.dxfer_len = data.size();
+    io_hdr.dxferp = const_cast<char*>(data.data());
+    io_hdr.cmdp = cdb.data();
+    unsigned char sense_buffer[64] = {0};
+    io_hdr.sbp = sense_buffer;
+    io_hdr.timeout = 60000; // 60s
+
+    if (ioctl(fd, SG_IO, &io_hdr) < 0) {
+        result.isError = true;
+        result.errorMessage = QString("SG_IO write failed: %1").arg(errno);
+        return result;
+    }
+
+    if (io_hdr.status == SCSISTAT_CHECK_CONDITION) {
+        ScsiSenseData* sense = reinterpret_cast<ScsiSenseData*>(sense_buffer);
+        if (sense->isValid()) {
+            if (sense->isEOM()) result.isEOM = true;
+            uint8_t key = sense->senseKey();
+            if (key != 0x00 && key != 0x01) {
+                result.isError = true;
+                result.errorMessage = QString("SCSI Write Error. Key: %1, ASC: %2, ASCQ: %3")
+                                        .arg(key, 2, 16, QChar('0'))
+                                        .arg(sense->ASC, 2, 16, QChar('0'))
+                                        .arg(sense->ASCQ, 2, 16, QChar('0'));
+            }
+        }
+    } else if (io_hdr.status != SCSISTAT_GOOD) {
+        result.isError = true;
+        result.errorMessage = QString("SCSI Status Error: %1").arg(io_hdr.status);
+    }
+
+    return result;
+#else
+    result.isError = true;
+    result.errorMessage = "Not implemented for this OS";
+    return result;
+#endif
+}
+
+DeviceManager::ScsiReadResult DeviceManager::readScsiBlockHandle(int handleId, uint32_t length)
+{
+    ScsiReadResult result;
+    HandleEntry* h = getHandle(handleId);
+    if (!h) {
+        result.isError = true;
+        result.errorMessage = "Invalid handle";
+        return result;
+    }
+
+#ifdef Q_OS_WIN
+    std::vector<uint8_t> cdb(6);
+    cdb[0] = 0x08;
+    cdb[2] = (length >> 16) & 0xFF;
+    cdb[3] = (length >> 8) & 0xFF;
+    cdb[4] = length & 0xFF;
+
+    QByteArray data(length, 0);
+
+    struct SCSI_PASS_THROUGH_DIRECT_WITH_BUFFER {
+        SCSI_PASS_THROUGH_DIRECT sptd;
+        ULONG             Filler;
+        UCHAR             ucSenseBuf[64];
+    } swb;
+
+    ZeroMemory(&swb, sizeof(swb));
+
+    swb.sptd.Length = sizeof(SCSI_PASS_THROUGH_DIRECT);
+    swb.sptd.CdbLength = 6;
+    swb.sptd.SenseInfoLength = sizeof(swb.ucSenseBuf);
+    swb.sptd.DataIn = SCSI_IOCTL_DATA_IN;
+    swb.sptd.DataTransferLength = length;
+    swb.sptd.TimeOutValue = 60;
+    swb.sptd.DataBuffer = data.data();
+    swb.sptd.SenseInfoOffset = offsetof(SCSI_PASS_THROUGH_DIRECT_WITH_BUFFER, ucSenseBuf);
+    memcpy(swb.sptd.Cdb, cdb.data(), 6);
+
+    DWORD bytesReturned;
+    BOOL ioResult = DeviceIoControl(static_cast<HANDLE>(h->nativeHandle),
+                                IOCTL_SCSI_PASS_THROUGH_DIRECT,
+                                &swb,
+                                sizeof(swb),
+                                &swb,
+                                sizeof(swb),
+                                &bytesReturned,
+                                NULL);
+
+    if (!ioResult) {
+        result.isError = true;
+        result.errorMessage = QString("DeviceIoControl failed. Error: %1").arg(GetLastError());
+        return result;
+    }
+
+    if (swb.sptd.ScsiStatus == SCSISTAT_CHECK_CONDITION) {
+        ScsiSenseData* sense = reinterpret_cast<ScsiSenseData*>(swb.ucSenseBuf);
+        if (sense->isValid()) {
+            if (sense->isFileMark()) result.isFileMark = true;
+            if (sense->isEOM()) result.isEOM = true;
+            uint8_t key = sense->senseKey();
+            if (key == 0x08) result.isEOD = true;
+            if (sense->isILI()) {
+                uint32_t info = (sense->Information[0] << 24) | (sense->Information[1] << 16) | 
+                                (sense->Information[2] << 8) | sense->Information[3];
+                if (info > 0 && info <= length) {
+                    data.resize(length - info);
+                }
+            }
+
+            if (key != 0x00 && key != 0x02 && !result.isFileMark && !result.isEOM && !result.isEOD && !sense->isILI()) {
+                 result.isError = true;
+                 result.errorMessage = QString("SCSI Error. Sense Key: %1, ASC: %2, ASCQ: %3")
+                                        .arg(key, 2, 16, QChar('0'))
+                                        .arg(sense->ASC, 2, 16, QChar('0'))
+                                        .arg(sense->ASCQ, 2, 16, QChar('0'));
+            }
+        }
+    } else if (swb.sptd.ScsiStatus != SCSISTAT_GOOD) {
+        result.isError = true;
+        result.errorMessage = QString("SCSI Status Error: %1").arg(swb.sptd.ScsiStatus);
+    }
+
+    if (result.isFileMark || result.isEOD) {
+        data.clear();
+    }
+    if (!result.isError) result.data = data;
+    return result;
+#elif defined(Q_OS_LINUX)
+    int fd = static_cast<int>(reinterpret_cast<intptr_t>(h->nativeHandle));
+    if (fd < 0) {
+        result.isError = true;
+        result.errorMessage = "Invalid device handle";
+        return result;
+    }
+
+    std::vector<uint8_t> cdb(6);
+    cdb[0] = SCSIOP_READ_6;
+    cdb[2] = (length >> 16) & 0xFF;
+    cdb[3] = (length >> 8) & 0xFF;
+    cdb[4] = length & 0xFF;
+
+    QByteArray data(length, 0);
+
+    sg_io_hdr_t io_hdr;
+    memset(&io_hdr, 0, sizeof(io_hdr));
+    io_hdr.interface_id = 'S';
+    io_hdr.cmd_len = cdb.size();
+    io_hdr.mx_sb_len = 64;
+    io_hdr.dxfer_direction = SG_DXFER_FROM_DEV;
+    io_hdr.dxfer_len = data.size();
+    io_hdr.dxferp = data.data();
+    io_hdr.cmdp = cdb.data();
+    unsigned char sense_buffer[64] = {0};
+    io_hdr.sbp = sense_buffer;
+    io_hdr.timeout = 60000;
+
+    if (ioctl(fd, SG_IO, &io_hdr) < 0) {
+        result.isError = true;
+        result.errorMessage = QString("SG_IO read failed: %1").arg(errno);
+        return result;
+    }
+
+    if (io_hdr.status == SCSISTAT_CHECK_CONDITION) {
+        ScsiSenseData* sense = reinterpret_cast<ScsiSenseData*>(sense_buffer);
+        if (sense->isValid()) {
+            if (sense->isFileMark()) result.isFileMark = true;
+            if (sense->isEOM()) result.isEOM = true;
+            uint8_t key = sense->senseKey();
+            if (key == 0x08) result.isEOD = true;
+            if (sense->isILI()) {
+                uint32_t info = (sense->Information[0] << 24) | (sense->Information[1] << 16) |
+                                (sense->Information[2] << 8) | sense->Information[3];
+                if (info > 0 && info <= (uint32_t)data.size()) {
+                    data.resize(data.size() - info);
+                }
+            }
+            if (key != 0x00 && key != 0x02 && !result.isFileMark && !result.isEOM && !result.isEOD && !sense->isILI()) {
+                result.isError = true;
+                result.errorMessage = QString("SCSI Error. Sense Key: %1, ASC: %2, ASCQ: %3")
+                                        .arg(key, 2, 16, QChar('0'))
+                                        .arg(sense->ASC, 2, 16, QChar('0'))
+                                        .arg(sense->ASCQ, 2, 16, QChar('0'));
+            }
+        }
+    } else if (io_hdr.status != SCSISTAT_GOOD) {
+        result.isError = true;
+        result.errorMessage = QString("SCSI Status Error: %1").arg(io_hdr.status);
+    }
+
+    if (result.isFileMark || result.isEOD) {
+        data.clear();
+    }
+    if (!result.isError) result.data = data;
     return result;
 #else
     result.isError = true;
@@ -394,9 +845,77 @@ DeviceManager::ScsiReadResult DeviceManager::readScsiBlock(uint32_t length)
         result.data = data;
     }
     return result;
+#elif defined(Q_OS_LINUX)
+    int fd = static_cast<int>(reinterpret_cast<intptr_t>(m_deviceHandle));
+    if (fd < 0) {
+        result.isError = true;
+        result.errorMessage = "Invalid device handle";
+        return result;
+    }
+
+    std::vector<uint8_t> cdb(6);
+    cdb[0] = SCSIOP_READ_6;
+    cdb[2] = (length >> 16) & 0xFF;
+    cdb[3] = (length >> 8) & 0xFF;
+    cdb[4] = length & 0xFF;
+
+    QByteArray data(length, 0);
+    sg_io_hdr_t io_hdr;
+    memset(&io_hdr, 0, sizeof(io_hdr));
+    io_hdr.interface_id = 'S';
+    io_hdr.cmd_len = cdb.size();
+    io_hdr.mx_sb_len = 64;
+    io_hdr.dxfer_direction = SG_DXFER_FROM_DEV;
+    io_hdr.dxfer_len = length;
+    io_hdr.dxferp = data.data();
+    io_hdr.cmdp = cdb.data();
+    unsigned char sense_buffer[64] = {0};
+    io_hdr.sbp = sense_buffer;
+    io_hdr.timeout = 60000; // 60s
+
+    if (ioctl(fd, SG_IO, &io_hdr) < 0) {
+        result.isError = true;
+        result.errorMessage = QString("SG_IO read failed: %1").arg(errno);
+        return result;
+    }
+
+    if (io_hdr.status == SCSISTAT_CHECK_CONDITION) {
+        ScsiSenseData* sense = reinterpret_cast<ScsiSenseData*>(sense_buffer);
+        if (sense->isValid()) {
+            if (sense->isFileMark()) result.isFileMark = true;
+            if (sense->isEOM()) result.isEOM = true;
+            uint8_t key = sense->senseKey();
+            if (key == 0x08) result.isEOD = true; // Blank check
+            if (sense->isILI()) {
+                uint32_t info = (sense->Information[0] << 24) | (sense->Information[1] << 16) |
+                                (sense->Information[2] << 8) | sense->Information[3];
+                if (info > 0 && info <= length) {
+                    data.resize(length - info);
+                }
+            }
+            if (key != 0x00 && key != 0x02 && !result.isFileMark && !result.isEOM && !result.isEOD && !sense->isILI()) {
+                result.isError = true;
+                result.errorMessage = QString("SCSI Error. Sense Key: %1, ASC: %2, ASCQ: %3")
+                                        .arg(key, 2, 16, QChar('0'))
+                                        .arg(sense->ASC, 2, 16, QChar('0'))
+                                        .arg(sense->ASCQ, 2, 16, QChar('0'));
+            }
+        }
+    } else if (io_hdr.status != SCSISTAT_GOOD) {
+        result.isError = true;
+        result.errorMessage = QString("SCSI Status Error: %1").arg(io_hdr.status);
+    }
+
+    if (result.isFileMark || result.isEOD) {
+        data.clear();
+    }
+    if (!result.isError) {
+        result.data = data;
+    }
+    return result;
 #else
     result.isError = true;
-    result.errorMessage = "Not implemented on macOS";
+    result.errorMessage = "Not implemented on this OS";
     return result;
 #endif
 }
@@ -440,6 +959,23 @@ DeviceManager::BlockLimits DeviceManager::readBlockLimits()
     return limits;
 }
 
+DeviceManager::BlockLimits DeviceManager::readBlockLimitsHandle(int handleId)
+{
+    BlockLimits limits;
+    std::vector<uint8_t> cdb(6, 0);
+    cdb[0] = SCSIOP_READ_BLOCK_LIMITS;
+
+    std::vector<uint8_t> data(6, 0);
+
+    if (sendScsiCommandHandle(handleId, cdb, ScsiDirection::In, data, 5000)) {
+        limits.maxBlockLength = (data[1] << 16) | (data[2] << 8) | data[3];
+        limits.minBlockLength = (data[4] << 8) | data[5];
+        limits.valid = true;
+    }
+
+    return limits;
+}
+
 DeviceManager::TapePosition DeviceManager::readPosition()
 {
     TapePosition pos;
@@ -471,6 +1007,27 @@ DeviceManager::TapePosition DeviceManager::readPosition()
         }
     }
     
+    return pos;
+}
+
+DeviceManager::TapePosition DeviceManager::readPositionHandle(int handleId)
+{
+    TapePosition pos;
+    std::vector<uint8_t> cdb(10, 0);
+    cdb[0] = SCSIOP_READ_POSITION;
+
+    std::vector<uint8_t> data(20, 0);
+    if (sendScsiCommandHandle(handleId, cdb, ScsiDirection::In, data, 5000)) {
+        pos.bop = (data[0] & 0x80) != 0;
+        pos.eop = (data[0] & 0x40) != 0;
+        bool bpu = (data[0] & 0x04) != 0;
+        if (!bpu) {
+            pos.partition = data[1];
+            pos.blockNumber = ((uint32_t)data[4] << 24) | ((uint32_t)data[5] << 16) |
+                              ((uint32_t)data[6] << 8) | (uint32_t)data[7];
+            pos.valid = true;
+        }
+    }
     return pos;
 }
 
@@ -508,6 +1065,23 @@ bool DeviceManager::setBlockSize(uint32_t blockSize)
     return sendScsiCommand(m_currentDevicePath, cdb, ScsiDirection::Out, data, 5000);
 }
 
+bool DeviceManager::setBlockSizeHandle(int handleId, uint32_t blockSize)
+{
+    std::vector<uint8_t> cdb(6);
+    cdb[0] = 0x15;
+    cdb[1] = 0x10;
+    cdb[4] = 12;
+
+    std::vector<uint8_t> data(12, 0);
+    data[2] = 0x10;
+    data[3] = 8;
+    data[5] = (blockSize >> 16) & 0xFF;
+    data[6] = (blockSize >> 8) & 0xFF;
+    data[7] = blockSize & 0xFF;
+
+    return sendScsiCommandHandle(handleId, cdb, ScsiDirection::Out, data, 5000);
+}
+
 bool DeviceManager::writeSetMark(uint8_t count)
 {
     if (!isDeviceOpen()) return false;
@@ -523,6 +1097,29 @@ bool DeviceManager::writeSetMark(uint8_t count)
     
     std::vector<uint8_t> data;
     return sendScsiCommand(m_currentDevicePath, cdb, ScsiDirection::None, data, 60000);
+}
+
+bool DeviceManager::writeSetMarkHandle(int handleId, uint8_t count)
+{
+    std::vector<uint8_t> cdb(6);
+    cdb[0] = 0x10;
+    cdb[1] = 0x02;
+    cdb[2] = (count >> 16) & 0xFF;
+    cdb[3] = (count >> 8) & 0xFF;
+    cdb[4] = count & 0xFF;
+    std::vector<uint8_t> data;
+    return sendScsiCommandHandle(handleId, cdb, ScsiDirection::None, data, 60000);
+}
+
+bool DeviceManager::writeFileMarkHandle(int handleId, uint8_t count)
+{
+    std::vector<uint8_t> cdb(6);
+    cdb[0] = 0x10;
+    cdb[2] = (count >> 16) & 0xFF;
+    cdb[3] = (count >> 8) & 0xFF;
+    cdb[4] = count & 0xFF;
+    std::vector<uint8_t> data;
+    return sendScsiCommandHandle(handleId, cdb, ScsiDirection::None, data, 60000);
 }
 
 bool DeviceManager::eraseTape(bool longErase)
@@ -541,6 +1138,16 @@ bool DeviceManager::eraseTape(bool longErase)
     unsigned int timeout = longErase ? 14400000 : 300000; // 4 hours or 5 mins
     
     return sendScsiCommand(m_currentDevicePath, cdb, ScsiDirection::None, data, timeout);
+}
+
+bool DeviceManager::eraseTapeHandle(int handleId, bool longErase)
+{
+    std::vector<uint8_t> cdb(6);
+    cdb[0] = 0x19;
+    if (longErase) cdb[1] = 0x01;
+    std::vector<uint8_t> data;
+    unsigned int timeout = longErase ? 14400000 : 300000;
+    return sendScsiCommandHandle(handleId, cdb, ScsiDirection::None, data, timeout);
 }
 
 bool DeviceManager::createPartition(uint8_t method, uint16_t sizeMB)
@@ -649,6 +1256,18 @@ bool DeviceManager::space(int32_t count, uint8_t code)
     return sendScsiCommand(m_currentDevicePath, cdb, ScsiDirection::None, data, 300000);
 }
 
+bool DeviceManager::spaceHandle(int handleId, int32_t count, uint8_t code)
+{
+    std::vector<uint8_t> cdb(6);
+    cdb[0] = 0x11;
+    cdb[1] = code & 0x0F;
+    cdb[2] = (count >> 16) & 0xFF;
+    cdb[3] = (count >> 8) & 0xFF;
+    cdb[4] = count & 0xFF;
+    std::vector<uint8_t> data;
+    return sendScsiCommandHandle(handleId, cdb, ScsiDirection::None, data, 300000);
+}
+
 bool DeviceManager::locate(uint64_t blockAddress, uint32_t partition)
 {
     if (!isDeviceOpen()) return false;
@@ -688,6 +1307,38 @@ bool DeviceManager::locate(uint64_t blockAddress, uint32_t partition)
     return sendScsiCommand(m_currentDevicePath, cdb10, ScsiDirection::None, data, 60000);
 }
 
+bool DeviceManager::locateHandle(int handleId, uint64_t blockAddress, uint32_t partition)
+{
+    std::vector<uint8_t> cdb(16, 0);
+    cdb[0] = 0x92;
+    cdb[1] = 0x02;
+    cdb[2] = partition;
+    cdb[4] = (blockAddress >> 56) & 0xFF;
+    cdb[5] = (blockAddress >> 48) & 0xFF;
+    cdb[6] = (blockAddress >> 40) & 0xFF;
+    cdb[7] = (blockAddress >> 32) & 0xFF;
+    cdb[8] = (blockAddress >> 24) & 0xFF;
+    cdb[9] = (blockAddress >> 16) & 0xFF;
+    cdb[10] = (blockAddress >> 8) & 0xFF;
+    cdb[11] = blockAddress & 0xFF;
+
+    std::vector<uint8_t> data;
+    if (sendScsiCommandHandle(handleId, cdb, ScsiDirection::None, data, 60000)) {
+        return true;
+    }
+    if (blockAddress > 0xFFFFFFFF) return false;
+
+    std::vector<uint8_t> cdb10(10, 0);
+    cdb10[0] = 0x2B;
+    cdb10[1] = 0x02;
+    cdb10[2] = (blockAddress >> 24) & 0xFF;
+    cdb10[3] = (blockAddress >> 16) & 0xFF;
+    cdb10[4] = (blockAddress >> 8) & 0xFF;
+    cdb10[5] = blockAddress & 0xFF;
+    cdb10[8] = partition;
+    return sendScsiCommandHandle(handleId, cdb10, ScsiDirection::None, data, 60000);
+}
+
 
 
 QList<TapeDeviceInfo> DeviceManager::scanDevices()
@@ -701,6 +1352,30 @@ QList<TapeDeviceInfo> DeviceManager::scanDevices()
 #else
     qDebug() << "Unsupported OS for device scanning";
     return QList<TapeDeviceInfo>();
+#endif
+}
+
+bool DeviceManager::sendScsiCommandHandle(int handleId,
+                                    const std::vector<uint8_t> &cdb,
+                                    ScsiDirection direction,
+                                    std::vector<uint8_t> &data,
+                                    unsigned int timeout)
+{
+    HandleEntry* h = getHandle(handleId);
+    if (!h) return false;
+
+#ifdef Q_OS_WIN
+    return sendScsiCommandWindows(h->path, cdb, direction, data, timeout, h->nativeHandle);
+#elif defined(Q_OS_LINUX)
+    return sendScsiCommandLinux(h->path, cdb, direction, data, timeout, h->nativeHandle);
+#elif defined(Q_OS_MAC)
+    return sendScsiCommandMac(h->path, cdb, direction, data, timeout, h->nativeHandle);
+#else
+    Q_UNUSED(cdb);
+    Q_UNUSED(direction);
+    Q_UNUSED(data);
+    Q_UNUSED(timeout);
+    return false;
 #endif
 }
 
@@ -1093,16 +1768,21 @@ QList<TapeDeviceInfo> DeviceManager::scanDevicesMac()
     return devices;
 }
 
-bool DeviceManager::sendScsiCommandWindows(const QString &devicePath, const std::vector<uint8_t> &cdb, ScsiDirection direction, std::vector<uint8_t> &data, unsigned int timeout)
+bool DeviceManager::sendScsiCommandWindows(const QString &devicePath, const std::vector<uint8_t> &cdb, ScsiDirection direction, std::vector<uint8_t> &data, unsigned int timeout, void* overrideHandle)
 {
 #ifdef Q_OS_WIN
-    HANDLE hDevice = CreateFile(reinterpret_cast<LPCWSTR>(devicePath.utf16()), 
+    HANDLE hDevice = overrideHandle ? static_cast<HANDLE>(overrideHandle) : INVALID_HANDLE_VALUE;
+    bool createdHandle = false;
+    if (hDevice == INVALID_HANDLE_VALUE) {
+        hDevice = CreateFile(reinterpret_cast<LPCWSTR>(devicePath.utf16()), 
                               GENERIC_READ | GENERIC_WRITE, 
                               FILE_SHARE_READ | FILE_SHARE_WRITE, 
                               NULL, 
                               OPEN_EXISTING, 
                               0, 
                               NULL);
+        createdHandle = true;
+    }
 
     if (hDevice == INVALID_HANDLE_VALUE) {
         return false;
@@ -1132,7 +1812,7 @@ bool DeviceManager::sendScsiCommandWindows(const QString &devicePath, const std:
     if (cdb.size() <= 16) {
         memcpy(swb.sptd.Cdb, cdb.data(), cdb.size());
     } else {
-        CloseHandle(hDevice);
+        if (createdHandle) CloseHandle(hDevice);
         return false;
     }
 
@@ -1150,18 +1830,23 @@ bool DeviceManager::sendScsiCommandWindows(const QString &devicePath, const std:
         qDebug() << "DeviceIoControl failed. Error:" << GetLastError();
     }
 
-    CloseHandle(hDevice);
+    if (createdHandle) CloseHandle(hDevice);
     return result != 0;
 #else
     return false;
 #endif
 }
 
-bool DeviceManager::sendScsiCommandLinux(const QString &devicePath, const std::vector<uint8_t> &cdb, ScsiDirection direction, std::vector<uint8_t> &data, unsigned int timeout)
+bool DeviceManager::sendScsiCommandLinux(const QString &devicePath, const std::vector<uint8_t> &cdb, ScsiDirection direction, std::vector<uint8_t> &data, unsigned int timeout, void* overrideHandle)
 {
 #ifdef Q_OS_LINUX
-    int fd = open(devicePath.toLatin1().constData(), O_RDWR);
-    if (fd < 0) return false;
+    int fd = overrideHandle ? static_cast<int>(reinterpret_cast<intptr_t>(overrideHandle)) : -1;
+    bool createdHandle = false;
+    if (fd < 0) {
+        fd = open(devicePath.toLatin1().constData(), O_RDWR);
+        if (fd < 0) return false;
+        createdHandle = true;
+    }
 
     sg_io_hdr_t io_hdr;
     memset(&io_hdr, 0, sizeof(sg_io_hdr_t));
@@ -1180,7 +1865,7 @@ bool DeviceManager::sendScsiCommandLinux(const QString &devicePath, const std::v
     io_hdr.sbp = sense_buffer;
 
     int result = ioctl(fd, SG_IO, &io_hdr);
-    close(fd);
+    if (createdHandle) close(fd);
 
     return result == 0;
 #else
@@ -1188,7 +1873,7 @@ bool DeviceManager::sendScsiCommandLinux(const QString &devicePath, const std::v
 #endif
 }
 
-bool DeviceManager::sendScsiCommandMac(const QString &devicePath, const std::vector<uint8_t> &cdb, ScsiDirection direction, std::vector<uint8_t> &data, unsigned int timeout)
+bool DeviceManager::sendScsiCommandMac(const QString &devicePath, const std::vector<uint8_t> &cdb, ScsiDirection direction, std::vector<uint8_t> &data, unsigned int timeout, void* overrideHandle)
 {
 #ifdef Q_OS_MAC
     // Note: This is a simplified implementation. 
@@ -1209,6 +1894,7 @@ bool DeviceManager::sendScsiCommandMac(const QString &devicePath, const std::vec
     // 4. Set CDB, Timeout, Direction.
     // 5. Execute.
     
+    Q_UNUSED(overrideHandle);
     return false; // Placeholder until full IOKit integration
 #else
     return false;
@@ -1258,26 +1944,24 @@ VHFLogData DeviceManager::getVHFLogPage(const QString &devicePath)
             if (offset + 4 + paramLen > data.size()) break;
             
             if (paramCode == 0x0000) { // Very High Frequency Data
-                // Parse VHF Data
-                // Based on TapeUtils.vb:
                 // Byte 0:
+                // Bit 4: Write Protect
                 // Bit 5: Clean Requested
                 // Bit 6: Cleaning Required
-                
                 // Byte 1:
                 // Bit 0: In Transition
                 // Bit 3: Media Present
                 // Bit 6: Media Threaded
                 // Bit 7: Data Accessible
-                
-                // Byte 2:
-                // DT Device Activity (Enum)
-                
-                if (paramLen >= 3) {
+                // Byte 2: Device Activity
+                // Byte 3: Bit 3 Encryption Parameters Present
+                if (paramLen >= 4) {
                     uint8_t byte0 = data[offset + 4];
                     uint8_t byte1 = data[offset + 5];
                     uint8_t byte2 = data[offset + 6];
+                    uint8_t byte3 = data[offset + 7];
                     
+                    vhf.writeProtect = (byte0 >> 4) & 1;
                     vhf.cleanRequested = (byte0 >> 5) & 1;
                     vhf.cleaningRequired = (byte0 >> 6) & 1;
                     
@@ -1287,13 +1971,9 @@ VHFLogData DeviceManager::getVHFLogPage(const QString &devicePath)
                     vhf.dataAccessible = (byte1 >> 7) & 1;
                     
                     vhf.deviceActivity = byte2; 
+                    vhf.encryptionEnabled = (byte3 >> 3) & 1;
                     
                     vhf.isValid = true;
-                }
-            } else if (paramCode == 0x0101) { // Encryption Status
-                if (paramLen >= 1) {
-                    uint8_t byte0 = data[offset + 4];
-                    vhf.encryptionEnabled = (byte0 & 0x01);
                 }
             }
             
@@ -1339,22 +2019,17 @@ DriveLedStatus DeviceManager::getDriveLedStatus(const QString &devicePath)
                 if (offset + 4 + paramLen > data.size()) break;
                 
                 if (paramCode == 0x0001) { // Device Status Bits
-                    // Byte 0: Cleaning flags
-                    // Byte 1: Device Status
-                    // Byte 2: Medium Status
+                    // Byte 0: Cleaning flags (bits 5/6)
+                    // Byte 1: Device Status (bits 6-7)
+                    // Byte 2: Medium Status (bits 6-7)
                     if (paramLen >= 3) {
                         uint8_t byte0 = data[offset + 4];
                         uint8_t byte1 = data[offset + 5];
                         uint8_t byte2 = data[offset + 6];
                         
-                        // Cleaning Required: Bit 2 (assuming MSB-based BitOffset 5)
-                        bool cleaningRequired = (byte0 & 0x04);
-                        
-                        // Device Status: Bits 1-0
-                        uint8_t deviceStatus = (byte1 & 0x03);
-                        
-                        // Medium Status: Bits 1-0
-                        uint8_t mediumStatus = (byte2 & 0x03);
+                        bool cleaningRequired = (byte0 & 0x60) != 0; // either required or requested
+                        uint8_t deviceStatus = (byte1 & 0xC0) >> 6;
+                        uint8_t mediumStatus = (byte2 & 0xC0) >> 6;
                         
                         status.clean = cleaningRequired;
                         status.driveError = (deviceStatus > 1);

@@ -57,6 +57,7 @@ private slots:
     void on_btnSetBlock_clicked();
     void on_btnPartition_clicked();
     void on_btnRawRead_clicked();
+    void on_btnDirectRW_clicked();
 
 private:
     Ui::MainWindow *ui;

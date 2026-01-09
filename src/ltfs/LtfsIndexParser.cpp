@@ -97,6 +97,8 @@ void LtfsIndexParser::readFile(QXmlStreamReader &xml, LtfsFile &file)
             file.length = attr.value().toULongLong();
         else if (attr.name() == QStringLiteral("readonly"))
             file.readonly = (attr.value() == QStringLiteral("true"));
+        else if (attr.name() == QStringLiteral("sha1"))
+            file.sha1 = attr.value().toString();
     }
 
     while (xml.readNextStartElement()) {

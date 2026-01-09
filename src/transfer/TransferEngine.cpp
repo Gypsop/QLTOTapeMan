@@ -20,6 +20,10 @@ TransferEngine::~TransferEngine()
     stop();
     if (m_readerThread.joinable()) m_readerThread.join();
     if (m_writerThread.joinable()) m_writerThread.join();
+    if (m_deviceManager) {
+        if (m_sourceHandleId >= 0) m_deviceManager->closeHandle(m_sourceHandleId);
+        if (m_destHandleId >= 0) m_deviceManager->closeHandle(m_destHandleId);
+    }
     delete m_buffer;
 }
 
@@ -59,6 +63,31 @@ void TransferEngine::setDeviceManager(DeviceManager* deviceManager)
 void TransferEngine::start()
 {
     if (m_running) return;
+    // Optional rewind before open handles to mimic LTFSCopyGUI safety
+    if (m_deviceManager) {
+        if (m_rewindSourceBefore && !m_sourceDevice.isEmpty()) {
+            m_deviceManager->rewindDevice(m_sourceDevice);
+        }
+        if (m_rewindDestBefore && !m_destDevice.isEmpty()) {
+            m_deviceManager->rewindDevice(m_destDevice);
+        }
+        // Open handles upfront to avoid per-thread open/close and to support dual-drive
+        if (!m_sourceDevice.isEmpty()) {
+            m_sourceHandleId = m_deviceManager->openHandle(m_sourceDevice);
+            if (m_sourceHandleId < 0) {
+                emit errorOccurred("Failed to open source tape device: " + m_sourceDevice);
+                return;
+            }
+        }
+        if (!m_destDevice.isEmpty()) {
+            m_destHandleId = m_deviceManager->openHandle(m_destDevice);
+            if (m_destHandleId < 0) {
+                emit errorOccurred("Failed to open destination tape device: " + m_destDevice);
+                if (m_sourceHandleId >= 0) { m_deviceManager->closeHandle(m_sourceHandleId); m_sourceHandleId = -1; }
+                return;
+            }
+        }
+    }
     
     m_running = true;
     m_abort = false;
@@ -80,19 +109,19 @@ void TransferEngine::readerLoop()
 {
     // Check if reading from tape
     if (!m_sourceDevice.isEmpty() && m_deviceManager) {
-        if (!m_deviceManager->openDevice(m_sourceDevice)) {
-            emit errorOccurred("Failed to open source tape device: " + m_sourceDevice);
+        if (m_sourceHandleId < 0) {
+            emit errorOccurred("Source device handle not available");
             m_buffer->setFinished();
             return;
         }
-        
+
         // Raw Tape Read Logic
         // We treat the tape content as a sequence of files separated by Filemarks
         
         int fileIndex = 0;
         
         while (!m_abort) {
-            QString fileName = QString("tape_dump_%1.bin").arg(fileIndex, 3, 10, QChar('0'));
+            QString fileName = QString("%1_%2.bin").arg(m_tapeDumpPrefix).arg(fileIndex, 3, 10, QChar('0'));
             
             // 1. Send FILE_START
             TransferBlock* startBlock = m_buffer->acquireEmptyBlock();
@@ -109,7 +138,7 @@ void TransferEngine::readerLoop()
                 TransferBlock* dataBlock = m_buffer->acquireEmptyBlock();
                 
                 // Read from tape
-                DeviceManager::ScsiReadResult result = m_deviceManager->readScsiBlock(m_buffer->blockSize());
+                DeviceManager::ScsiReadResult result = m_deviceManager->readScsiBlockHandle(m_sourceHandleId, m_buffer->blockSize());
                 
                 if (result.isError) {
                     m_buffer->releaseBlock(dataBlock);
@@ -158,7 +187,6 @@ void TransferEngine::readerLoop()
             
             fileIndex++;
         }
-        
         m_buffer->setFinished();
         return;
     }
@@ -226,12 +254,9 @@ void TransferEngine::writerLoop()
     bool toTape = !m_destDevice.isEmpty() && m_deviceManager != nullptr;
     
     QFile destFile;
-    if (toTape) {
-        if (!m_deviceManager->openDevice(m_destDevice)) {
-            emit errorOccurred("Failed to open tape device: " + m_destDevice);
-            m_abort = true;
-            // Don't return immediately, let the loop drain the buffer or handle abort
-        }
+    if (toTape && m_destHandleId < 0) {
+        emit errorOccurred("Destination device handle not available");
+        m_abort = true;
     }
 
     QElapsedTimer timer;
@@ -254,33 +279,41 @@ void TransferEngine::writerLoop()
                 // In a real app, we might write a header block here.
                 emit fileStarted(block->fileName);
             } else {
-                QString destPath = QDir(m_destPath).filePath(block->fileName);
+                QDir dir(m_destPath);
+                QString destPath = dir.filePath(block->fileName);
+                // Ensure no overwrite: append counter if exists
+                int suffix = 1;
+                QString baseName = QFileInfo(destPath).completeBaseName();
+                QString ext = QFileInfo(destPath).completeSuffix();
+                while (QFile::exists(destPath)) {
+                    QString newName = ext.isEmpty() ? QString("%1_%2").arg(baseName).arg(suffix)
+                                                    : QString("%1_%2.%3").arg(baseName).arg(suffix).arg(ext);
+                    destPath = dir.filePath(newName);
+                    ++suffix;
+                }
                 destFile.setFileName(destPath);
                 if (!destFile.open(QIODevice::WriteOnly)) {
                     emit errorOccurred("Failed to create destination file: " + destPath);
                     m_abort = true;
                 } else {
-                    emit fileStarted(block->fileName);
+                    emit fileStarted(QFileInfo(destPath).fileName());
                 }
             }
         }
         else if (block->type == TransferBlock::DATA) {
             bool success = false;
             if (toTape) {
-                if (m_deviceManager->isDeviceOpen()) {
-                    // Write to tape
-                    QByteArray data((const char*)block->buffer.data(), block->validSize);
-                    DeviceManager::ScsiWriteResult result = m_deviceManager->writeScsiBlock(data);
-                    success = !result.isError;
-                    
-                    if (result.isEOM) {
-                        emit errorOccurred("End of Media reached during write");
-                        m_abort = true;
-                        success = false;
-                    } else if (result.isError) {
-                         emit errorOccurred("Write error on tape device: " + result.errorMessage);
-                         m_abort = true;
-                    }
+                QByteArray data((const char*)block->buffer.data(), block->validSize);
+                DeviceManager::ScsiWriteResult result = m_deviceManager->writeScsiBlockHandle(m_destHandleId, data);
+                success = !result.isError;
+                
+                if (result.isEOM) {
+                    emit errorOccurred("End of Media reached during write");
+                    m_abort = true;
+                    success = false;
+                } else if (result.isError) {
+                     emit errorOccurred("Write error on tape device: " + result.errorMessage);
+                     m_abort = true;
                 }
             } else {
                 if (destFile.isOpen()) {
@@ -300,14 +333,11 @@ void TransferEngine::writerLoop()
         }
         else if (block->type == TransferBlock::FILE_END) {
             if (toTape) {
-                if (m_deviceManager->isDeviceOpen()) {
-                    // Write Filemark
-                    if (!m_deviceManager->writeFileMark(1)) {
-                        emit errorOccurred("Failed to write filemark");
-                        m_abort = true;
-                    }
-                    emit fileFinished(block->fileName, block->checksum);
+                if (!m_deviceManager->writeFileMarkHandle(m_destHandleId, 1)) {
+                    emit errorOccurred("Failed to write filemark");
+                    m_abort = true;
                 }
+                emit fileFinished(block->fileName, block->checksum);
             } else {
                 if (destFile.isOpen()) {
                     destFile.close();
@@ -329,12 +359,17 @@ void TransferEngine::writerLoop()
     }
     
     if (toTape) {
-        if (m_deviceManager->isDeviceOpen()) {
-            m_deviceManager->synchronizeCache();
+        if (m_deviceManager && m_destHandleId >= 0) {
+            m_deviceManager->synchronizeCacheHandle(m_destHandleId);
+            m_deviceManager->closeHandle(m_destHandleId);
+            m_destHandleId = -1;
         }
-        m_deviceManager->closeDevice();
     } else {
         if (destFile.isOpen()) destFile.close();
+    }
+    if (m_deviceManager && m_sourceHandleId >= 0) {
+        m_deviceManager->closeHandle(m_sourceHandleId);
+        m_sourceHandleId = -1;
     }
     
     m_running = false;

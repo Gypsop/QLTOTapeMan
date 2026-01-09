@@ -19,6 +19,9 @@ public:
     void setDestinationPath(const QString& path); // Legacy, for file-to-file
     void setDestinationDevice(const QString& devicePath); // For tape
     void setDeviceManager(DeviceManager* deviceManager);
+    void setRewindSourceBefore(bool enable) { m_rewindSourceBefore = enable; }
+    void setRewindDestBefore(bool enable) { m_rewindDestBefore = enable; }
+    void setTapeDumpPrefix(const QString& prefix) { m_tapeDumpPrefix = prefix; }
     
     // Start the transfer process
     void start();
@@ -53,6 +56,9 @@ private:
     QString m_destPath;
     QString m_destDevice;
     DeviceManager* m_deviceManager = nullptr;
+
+    int m_sourceHandleId = -1;
+    int m_destHandleId = -1;
     
     RingBuffer* m_buffer = nullptr;
     
@@ -64,4 +70,8 @@ private:
     
     quint64 m_totalBytes = 0;
     quint64 m_processedBytes = 0;
+
+    bool m_rewindSourceBefore = true;
+    bool m_rewindDestBefore = true;
+    QString m_tapeDumpPrefix = "tape_dump";
 };

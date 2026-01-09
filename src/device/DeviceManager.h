@@ -73,22 +73,35 @@ public:
     // Scan for connected tape devices
     QList<TapeDeviceInfo> scanDevices();
 
-    // Send a raw SCSI command
+    // Multi-handle API ----------------------------------------------------
+    // Returns a handle token (opaque int) or -1 on failure
+    int openHandle(const QString &devicePath);
+    void closeHandle(int handleId);
+    bool isHandleOpen(int handleId) const;
+
+    // Legacy single-handle helpers (for existing code paths)
+    bool openDevice(const QString &devicePath);
+    void closeDevice();
+    bool isDeviceOpen() const;
+
+    // Raw SCSI
+    bool sendScsiCommandHandle(int handleId,
+                               const std::vector<uint8_t> &cdb,
+                               ScsiDirection direction,
+                               std::vector<uint8_t> &data,
+                               unsigned int timeout = 5000);
     bool sendScsiCommand(const QString &devicePath,
                          const std::vector<uint8_t> &cdb,
                          ScsiDirection direction,
                          std::vector<uint8_t> &data,
                          unsigned int timeout = 5000);
 
-    // Tape Operations
-    bool openDevice(const QString &devicePath);
-    void closeDevice();
-    bool isDeviceOpen() const;
-
-    TapeStatus getDeviceStatus(const QString &devicePath); // High-level status check
-    DriveLedStatus getDriveLedStatus(const QString &devicePath); // Get LED status from Log Pages 0x3E and 0x11
-    VHFLogData getVHFLogPage(const QString &devicePath); // Get Very High Frequency Log Page (0x11)
-    uint64_t readTapeAlerts(const QString &devicePath); // Get TapeAlert Log Page (0x2E)
+    // Tape Operations (handle-based)
+    TapeStatus getDeviceStatus(const QString &devicePath); // legacy
+    TapeStatus getDeviceStatusHandle(int handleId, const QString &devicePath);
+    DriveLedStatus getDriveLedStatus(const QString &devicePath);
+    VHFLogData getVHFLogPage(const QString &devicePath);
+    uint64_t readTapeAlerts(const QString &devicePath);
 
     bool isDeviceReady(const QString &devicePath);
     bool rewindDevice(const QString &devicePath);
@@ -96,16 +109,19 @@ public:
     bool loadDevice(const QString &devicePath);
     bool setMediaRemovalPrevention(const QString &devicePath, bool prevent);
     
-    // Block I/O Operations (Requires openDevice)
-    bool setBlockSize(uint32_t blockSize); // 0 = Variable Block Mode
+    // Block I/O Operations
+    bool setBlockSizeHandle(int handleId, uint32_t blockSize); // 0 = Variable
+    bool setBlockSize(uint32_t blockSize); // legacy
     
     struct ScsiWriteResult {
         bool isEOM = false; // Early Warning EOM
         bool isError = false;
         QString errorMessage;
     };
-    ScsiWriteResult writeScsiBlock(const QByteArray &data);
-    bool synchronizeCache();
+    ScsiWriteResult writeScsiBlockHandle(int handleId, const QByteArray &data);
+    ScsiWriteResult writeScsiBlock(const QByteArray &data); // legacy
+    bool synchronizeCacheHandle(int handleId);
+    bool synchronizeCache(); // legacy
     
     struct ScsiReadResult {
         QByteArray data;
@@ -115,13 +131,15 @@ public:
         bool isError = false;
         QString errorMessage;
     };
-    ScsiReadResult readScsiBlock(uint32_t length);
+    ScsiReadResult readScsiBlockHandle(int handleId, uint32_t length);
+    ScsiReadResult readScsiBlock(uint32_t length); // legacy
     
     struct BlockLimits {
         uint32_t maxBlockLength = 0;
         uint16_t minBlockLength = 0;
         bool valid = false;
     };
+    BlockLimits readBlockLimitsHandle(int handleId);
     BlockLimits readBlockLimits();
 
     struct TapePosition {
@@ -131,13 +149,20 @@ public:
         bool eop = false; // End of Partition
         bool valid = false;
     };
+    TapePosition readPositionHandle(int handleId);
     TapePosition readPosition();
 
+    bool writeFileMarkHandle(int handleId, uint8_t count = 1);
     bool writeFileMark(uint8_t count = 1);
+    bool writeSetMarkHandle(int handleId, uint8_t count = 1);
     bool writeSetMark(uint8_t count = 1);
+    bool eraseTapeHandle(int handleId, bool longErase = false);
     bool eraseTape(bool longErase = false);
-    bool createPartition(uint8_t method, uint16_t sizeMB); // method: 0=IDP, 1=Wrap, 2=Size
-    bool space(int32_t count, uint8_t code); // code: 0=Blocks, 1=FileMarks, 3=End of Data, 4=Setmarks
+    bool createPartitionHandle(int handleId, uint8_t method, uint16_t sizeMB);
+    bool createPartition(uint8_t method, uint16_t sizeMB);
+    bool spaceHandle(int handleId, int32_t count, uint8_t code);
+    bool space(int32_t count, uint8_t code);
+    bool locateHandle(int handleId, uint64_t blockAddress, uint32_t partition = 0);
     bool locate(uint64_t blockAddress, uint32_t partition = 0);
     
     // MAM & Logs
@@ -148,8 +173,16 @@ signals:
     void deviceListChanged(const QList<TapeDeviceInfo> &devices);
 
 private:
-    void* m_deviceHandle = nullptr; // Platform specific handle
+    struct HandleEntry {
+        QString path;
+        void* nativeHandle = nullptr;
+    };
+    QMap<int, HandleEntry> m_handles;
+    int m_nextHandleId = 1;
+    void* m_deviceHandle = nullptr; // legacy single-handle
     QString m_currentDevicePath;
+
+    HandleEntry* getHandle(int handleId);
 
     // OS-specific implementations
     QList<TapeDeviceInfo> scanDevicesWindows();
@@ -157,9 +190,9 @@ private:
     QList<TapeDeviceInfo> scanDevicesMac();
 
     // OS-specific SCSI implementations
-    bool sendScsiCommandWindows(const QString &devicePath, const std::vector<uint8_t> &cdb, ScsiDirection direction, std::vector<uint8_t> &data, unsigned int timeout);
-    bool sendScsiCommandLinux(const QString &devicePath, const std::vector<uint8_t> &cdb, ScsiDirection direction, std::vector<uint8_t> &data, unsigned int timeout);
-    bool sendScsiCommandMac(const QString &devicePath, const std::vector<uint8_t> &cdb, ScsiDirection direction, std::vector<uint8_t> &data, unsigned int timeout);
+    bool sendScsiCommandWindows(const QString &devicePath, const std::vector<uint8_t> &cdb, ScsiDirection direction, std::vector<uint8_t> &data, unsigned int timeout, void* overrideHandle = nullptr);
+    bool sendScsiCommandLinux(const QString &devicePath, const std::vector<uint8_t> &cdb, ScsiDirection direction, std::vector<uint8_t> &data, unsigned int timeout, void* overrideHandle = nullptr);
+    bool sendScsiCommandMac(const QString &devicePath, const std::vector<uint8_t> &cdb, ScsiDirection direction, std::vector<uint8_t> &data, unsigned int timeout, void* overrideHandle = nullptr);
 };
 
 #endif // DEVICEMANAGER_H
