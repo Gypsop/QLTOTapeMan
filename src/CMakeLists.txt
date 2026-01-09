@@ -62,6 +62,7 @@ target_compile_definitions(qlto_io PUBLIC
 
 if(QLTOTAPEMAN_WITH_WIN)
     target_compile_definitions(qlto_io PRIVATE _WIN32_WINNT=0x0601 WIN32_LEAN_AND_MEAN)
+    target_link_libraries(qlto_io PUBLIC setupapi)
 endif()
 
 # Pipeline library
