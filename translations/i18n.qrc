@@ -1,7 +1,0 @@
-<RCC>
-    <qresource prefix="/i18n">
-        <file>qltotapeman_en_US.qm</file>
-        <file>qltotapeman_zh_CN.qm</file>
-        <file>qltotapeman_zh_TW.qm</file>
-    </qresource>
-</RCC>
