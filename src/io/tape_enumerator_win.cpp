@@ -1,8 +1,10 @@
 #include "tape_enumerator_win.h"
 
+
 #include <windows.h>
 #include <initguid.h>
 #include <setupapi.h>
+#include <cstdint>
 
 #include <string>
 #include <vector>
