@@ -9,6 +9,7 @@ set(QLTO_INCLUDE_DIRS
 set(QLTO_CORE_SOURCES
     core/ltfs_index.cpp
     core/ltfs_label.cpp
+    core/ltfs_service.cpp
 )
 add_library(qlto_core STATIC ${QLTO_CORE_SOURCES})
 target_include_directories(qlto_core PUBLIC ${QLTO_INCLUDE_DIRS})

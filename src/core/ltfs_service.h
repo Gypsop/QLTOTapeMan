@@ -69,4 +69,6 @@ public:
     virtual bool flush(std::string &err) = 0;
 };
 
+std::unique_ptr<LtfsService> make_ltfs_service();
+
 } // namespace qlto

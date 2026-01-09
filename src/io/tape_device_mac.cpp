@@ -337,7 +337,7 @@ bool TapeDeviceMac::read_mam(std::uint8_t page, std::uint8_t id, MamAttribute &o
     }
     out.page = page;
     out.id = id;
-    out.bytes.assign(buf.begin() + 8, buf.end());
+    out.data.assign(buf.begin() + 8, buf.end());
     return true;
 }
 
@@ -346,20 +346,20 @@ bool TapeDeviceMac::write_mam(std::uint8_t page, const MamAttribute &attr, Sense
     cdb[0] = 0x8D; // WRITE ATTRIBUTE (SSC)
     cdb[3] = page;
     cdb[4] = attr.id;
-    cdb[8] = static_cast<std::uint8_t>((attr.bytes.size() >> 8) & 0xFF);
-    cdb[9] = static_cast<std::uint8_t>(attr.bytes.size() & 0xFF);
+    cdb[8] = static_cast<std::uint8_t>((attr.data.size() >> 8) & 0xFF);
+    cdb[9] = static_cast<std::uint8_t>(attr.data.size() & 0xFF);
 
     std::vector<std::uint8_t> payload;
-    payload.reserve(8 + attr.bytes.size());
+    payload.reserve(8 + attr.data.size());
     payload.push_back(0x00); // element type
     payload.push_back(page);
     payload.push_back(attr.id);
     payload.push_back(0x00);
     payload.push_back(0x00);
-    payload.push_back(static_cast<std::uint8_t>((attr.bytes.size() >> 8) & 0xFF));
-    payload.push_back(static_cast<std::uint8_t>(attr.bytes.size() & 0xFF));
+    payload.push_back(static_cast<std::uint8_t>((attr.data.size() >> 8) & 0xFF));
+    payload.push_back(static_cast<std::uint8_t>(attr.data.size() & 0xFF));
     payload.push_back(0x00);
-    payload.insert(payload.end(), attr.bytes.begin(), attr.bytes.end());
+    payload.insert(payload.end(), attr.data.begin(), attr.data.end());
 
     return scsi_pass_through(cdb, payload, false, 30000, sense, err);
 }
