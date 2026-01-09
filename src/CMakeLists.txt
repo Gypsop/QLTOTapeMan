@@ -59,6 +59,10 @@ target_compile_definitions(qlto_io PUBLIC
     $<$<BOOL:${QLTOTAPEMAN_WITH_MAC}>:QLTO_PLATFORM_MAC>
 )
 
+if(QLTOTAPEMAN_WITH_WIN)
+    target_compile_definitions(qlto_io PRIVATE _WIN32_WINNT=0x0601 WIN32_LEAN_AND_MEAN)
+endif()
+
 # Pipeline library
 set(QLTO_PIPELINE_SOURCES
     pipeline/file_pipeline_stub.cpp

@@ -1,12 +1,9 @@
 #include "tape_device_win.h"
 
+#include <windows.h>
 #include <winioctl.h>
+#include <ntddscsi.h>
 
-#include <cstdlib>
-#include <filesystem>
-#include <fstream>
-#include <sstream>
-#include <system_error>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
