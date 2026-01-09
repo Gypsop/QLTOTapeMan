@@ -17,7 +17,7 @@
        <item row="0" column="0"><widget class="QLabel" name="modeLabel"><property name="text"><string>Mode</string></property></widget></item>
        <item row="0" column="1"><widget class="QComboBox" name="modeCombo"><item><property name="text"><string>Online</string></property></item><item><property name="text"><string>Offline</string></property></item></widget></item>
        <item row="0" column="2"><widget class="QLabel" name="driveLabel"><property name="text"><string>Drive</string></property></widget></item>
-       <item row="0" column="3"><widget class="QLineEdit" name="drivePathEdit"><property name="placeholderText"><string>/dev/st0</string></property></widget></item>
+    <item row="0" column="3"><widget class="QLineEdit" name="drivePathEdit"/></item>
        <item row="0" column="4"><widget class="QLabel" name="blockLabel"><property name="text"><string>Block Size</string></property></widget></item>
        <item row="0" column="5"><widget class="QSpinBox" name="blockSizeSpin"><property name="minimum"><number>64</number></property><property name="maximum"><number>4096</number></property><property name="singleStep"><number>64</number></property><property name="suffix"><string> KB</string></property><property name="value"><number>512</number></property></widget></item>
        <item row="1" column="0"><widget class="QLabel" name="hashLabel"><property name="text"><string>Hash</string></property></widget></item>

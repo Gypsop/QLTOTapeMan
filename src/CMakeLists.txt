@@ -66,7 +66,7 @@ endif()
 
 # Pipeline library
 set(QLTO_PIPELINE_SOURCES
-    pipeline/file_pipeline_stub.cpp
+    pipeline/file_pipeline.cpp
 )
 add_library(qlto_pipeline STATIC ${QLTO_PIPELINE_SOURCES})
 target_include_directories(qlto_pipeline PUBLIC ${QLTO_INCLUDE_DIRS})

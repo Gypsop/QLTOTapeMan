@@ -29,11 +29,16 @@ private slots:
 
 private:
     void appendLog(const QString &text);
-    void populateStubDevices();
+    void populateDevices();
+    void openCurrentDevice();
 
     std::unique_ptr<Ui::MainWindow> ui;
     QStandardItemModel deviceModel_;
     std::unique_ptr<LTFSWriterWindow> writerWindow_;
+    std::unique_ptr<class TapeEnumerator> enumerator_;
+    std::unique_ptr<class TapeDevice> device_;
+    SenseData sense_{};
+    QString openedPath_;
 };
 
 } // namespace qlto

@@ -10,6 +10,12 @@
 #include <QStandardItem>
 #include <QTimer>
 #include <QtGlobal>
+#include <QMetaObject>
+#include <functional>
+#include <QFileInfo>
+
+#include "../core/ltfs_service.h"
+#include "../io/tape_factory.h"
 
 namespace qlto {
 
@@ -45,15 +51,8 @@ LTFSWriterWindow::LTFSWriterWindow(QWidget *parent)
     connect(ui->treeView->selectionModel(), &QItemSelectionModel::currentChanged, this,
             &LTFSWriterWindow::handleTreeSelectionChanged);
 
-    populateStubTree();
-    if (treeModel_.rowCount() > 0) {
-        ui->treeView->expandAll();
-        ui->treeView->setCurrentIndex(treeModel_.index(0, 0));
-        refreshFileTable(treeModel_.index(0, 0));
-    }
-
     setStatusLight(tr("Idle"), QStringLiteral("#888"));
-    appendLog(tr("LTFSWriter ready (stub mode)."));
+    appendLog(tr("LTFSWriter ready."));
 }
 
 LTFSWriterWindow::~LTFSWriterWindow() = default;
@@ -74,51 +73,40 @@ void LTFSWriterWindow::appendLog(const QString &text) {
     ui->logEdit->appendPlainText(QStringLiteral("[%1] %2").arg(ts, text));
 }
 
-void LTFSWriterWindow::populateStubTree() {
-    treeModel_.removeRows(0, treeModel_.rowCount());
-
-    auto addFile = [](QStandardItem *parent, const QString &name, qint64 size, const QString &path) {
-        auto *nameItem = new QStandardItem(name);
-        nameItem->setCheckable(true);
-        nameItem->setCheckState(Qt::Unchecked);
-        nameItem->setEditable(false);
-        nameItem->setData(path, Qt::UserRole + 1);
-
-        auto *sizeItem = new QStandardItem(QString::number(size / 1024) + QStringLiteral(" KB"));
-        sizeItem->setEditable(false);
-        auto *pathItem = new QStandardItem(path);
-        pathItem->setEditable(false);
-        parent->appendRow({nameItem, sizeItem, pathItem});
-    };
-
-    auto *root = new QStandardItem(tr("Volume"));
-    root->setCheckable(true);
-    root->setCheckState(Qt::Unchecked);
-    root->setEditable(false);
-    root->setData(QStringLiteral("/"), Qt::UserRole + 1);
-    auto *rootSize = new QStandardItem(QStringLiteral(""));
-    auto *rootPath = new QStandardItem(QStringLiteral("/"));
-    treeModel_.appendRow({root, rootSize, rootPath});
-
-    auto *projA = new QStandardItem(QStringLiteral("ProjectA"));
-    projA->setCheckable(true);
-    projA->setCheckState(Qt::Unchecked);
-    projA->setEditable(false);
-    projA->setData(QStringLiteral("/ProjectA"), Qt::UserRole + 1);
-    root->appendRow({projA, new QStandardItem(QStringLiteral("")), new QStandardItem(QStringLiteral("/ProjectA"))});
-    addFile(projA, QStringLiteral("scene1.mov"), 5'000'000, QStringLiteral("/ProjectA/scene1.mov"));
-    addFile(projA, QStringLiteral("scene2.mov"), 3'200'000, QStringLiteral("/ProjectA/scene2.mov"));
-
-    auto *projB = new QStandardItem(QStringLiteral("ProjectB"));
-    projB->setCheckable(true);
-    projB->setCheckState(Qt::Unchecked);
-    projB->setEditable(false);
-    projB->setData(QStringLiteral("/ProjectB"), Qt::UserRole + 1);
-    root->appendRow({projB, new QStandardItem(QStringLiteral("")), new QStandardItem(QStringLiteral("/ProjectB"))});
-    addFile(projB, QStringLiteral("report.pdf"), 120'000, QStringLiteral("/ProjectB/report.pdf"));
-    addFile(projB, QStringLiteral("data.bin"), 800'000, QStringLiteral("/ProjectB/data.bin"));
-
-    ui->treeView->expand(root->index());
+void LTFSWriterWindow::ensurePathItem(const QStringList &parts, qint64 sizeBytes) {
+    if (parts.isEmpty()) return;
+    QStandardItem *parent = treeModel_.invisibleRootItem();
+    QString currentPath;
+    for (int i = 0; i < parts.size(); ++i) {
+        currentPath += "/" + parts[i];
+        QStandardItem *match = nullptr;
+        for (int r = 0; r < parent->rowCount(); ++r) {
+            auto *child = parent->child(r, 0);
+            if (child && child->text() == parts[i]) {
+                match = child;
+                break;
+            }
+        }
+        if (!match) {
+            match = new QStandardItem(parts[i]);
+            match->setCheckable(true);
+            match->setCheckState(Qt::Checked);
+            match->setEditable(false);
+            match->setData(currentPath, Qt::UserRole + 1);
+            auto *sizeItem = new QStandardItem();
+            auto *pathItem = new QStandardItem(currentPath);
+            parent->appendRow({match, sizeItem, pathItem});
+        }
+        parent = match;
+    }
+    if (parent) {
+        parent->setCheckState(Qt::Checked);
+        const QModelIndex idx = parent->index();
+        auto *sizeItem = treeModel_.itemFromIndex(idx.sibling(idx.row(), 1));
+        if (sizeItem && sizeBytes >= 0) {
+            sizeItem->setText(QString::number(sizeBytes / 1024) + QStringLiteral(" KB"));
+        }
+    }
 }
 
 void LTFSWriterWindow::refreshFileTable(const QModelIndex &dirIndex) {
@@ -148,26 +136,109 @@ void LTFSWriterWindow::setStatusLight(const QString &text, const QString &color)
     if (statusText_) statusText_->setText(text);
 }
 
+void LTFSWriterWindow::setDrivePath(const QString &path) {
+    drivePath_ = path;
+    ui->drivePathEdit->setText(path);
+}
+
 void LTFSWriterWindow::startJob() {
-    progressValue_ = 0;
-    paused_ = false;
-    progressBar_->setValue(progressValue_);
-    progressTimer_.start();
+    std::string err;
+    if (!ensureServiceReady(err)) {
+        appendLog(QString::fromStdString(err));
+        return;
+    }
+
+    const auto paths = selectedFilePaths();
+    if (paths.empty()) {
+        appendLog(tr("No files selected."));
+        return;
+    }
+
+    std::vector<LtfsFile> files;
+    files.reserve(paths.size());
+    for (const auto &p : paths) {
+        QFileInfo info(p);
+        if (!info.exists() || !info.isFile()) continue;
+        LtfsFile f{};
+        f.name = info.fileName().toStdString();
+        f.length = static_cast<std::uint64_t>(info.size());
+        LtfsXAttr xa{};
+        xa.name = "source_path";
+        xa.value = info.absoluteFilePath().toStdString();
+        f.extendedattributes.push_back(std::move(xa));
+        files.push_back(std::move(f));
+    }
+    if (files.empty()) {
+        appendLog(tr("Selected entries are not valid files."));
+        return;
+    }
+
+    WriteOptions opts{};
+    opts.block_len = static_cast<std::uint32_t>(ui->blockSizeSpin->value()) * 1024;
+    opts.hash_on_write = ui->hashCheck->isChecked();
+    opts.speed_limit_mib_s = static_cast<std::uint32_t>(ui->speedLimitSpin->value());
+    opts.index_interval_bytes = static_cast<std::uint64_t>(ui->indexIntervalSpin->value()) * opts.block_len;
+    opts.capacity_interval_sec = static_cast<std::uint32_t>(ui->capacityIntervalSpin->value());
+    opts.extra_partition_count = static_cast<std::uint8_t>(ui->extraPartitionSpin->value());
+    opts.offline_mode = ui->offlineToggle->isChecked();
+
+    ServiceCallbacks cb{};
+    cb.progress = [this](double v) {
+        int percent = static_cast<int>(v * 100.0);
+        QMetaObject::invokeMethod(progressBar_, [this, percent]() { progressBar_->setValue(percent); }, Qt::QueuedConnection);
+    };
+    cb.log = [this](const std::string &msg) {
+        QMetaObject::invokeMethod(this, [this, msg]() { appendLog(QString::fromStdString(msg)); }, Qt::QueuedConnection);
+    };
+    cb.status_text = [this](const std::string &msg) {
+        QMetaObject::invokeMethod(this, [this, msg]() { appendLog(QString::fromStdString(msg)); }, Qt::QueuedConnection);
+    };
+    cb.status_light = [this](LWStatus st) {
+        QString text;
+        QString color = "#888";
+        switch (st) {
+        case LWStatus::Busy: text = tr("Running"); color = "#2e7d32"; break;
+        case LWStatus::Pause: text = tr("Paused"); color = "#f9a825"; break;
+        case LWStatus::Err: text = tr("Error"); color = "#c62828"; break;
+        case LWStatus::Succ: text = tr("Completed"); color = "#1565c0"; break;
+        case LWStatus::Stopped: text = tr("Stopped"); color = "#455a64"; break;
+        default: text = tr("Idle"); break;
+        }
+        QMetaObject::invokeMethod(this, [this, text, color]() { setStatusLight(text, color); }, Qt::QueuedConnection);
+    };
+    cb.capacity = [this](const CapacityInfo &cap) {
+        QMetaObject::invokeMethod(this, [this, cap]() {
+            statusText_->setText(tr("Free %1 / Total %2 MB")
+                                     .arg(static_cast<double>(cap.bytes_free) / (1024.0 * 1024.0), 0, 'f', 1)
+                                     .arg(static_cast<double>(cap.bytes_total) / (1024.0 * 1024.0), 0, 'f', 1));
+        });
+    };
+    service_->set_callbacks(cb);
+
+    progressBar_->setValue(0);
     setStatusLight(tr("Running"), QStringLiteral("#2e7d32"));
     appendLog(tr("Started writing job."));
+
+    std::thread([this, files = std::move(files), opts]() {
+        std::string err;
+        bool ok = service_->write_files(files, opts, err);
+        if (!ok) {
+            QMetaObject::invokeMethod(this, [this, err]() {
+                appendLog(QStringLiteral("Write failed: %1").arg(QString::fromStdString(err)));
+                setStatusLight(tr("Error"), QStringLiteral("#c62828"));
+            }, Qt::QueuedConnection);
+        } else {
+            QMetaObject::invokeMethod(this, [this]() { setStatusLight(tr("Completed"), QStringLiteral("#1565c0")); }, Qt::QueuedConnection);
+        }
+    }).detach();
 }
 
 void LTFSWriterWindow::pauseJob() {
-    paused_ = true;
-    setStatusLight(tr("Paused"), QStringLiteral("#f9a825"));
-    appendLog(tr("Paused."));
+    appendLog(tr("Pause is not supported for the current operation."));
 }
 
 void LTFSWriterWindow::resumeJob() {
-    if (!progressTimer_.isActive()) progressTimer_.start();
-    paused_ = false;
-    setStatusLight(tr("Running"), QStringLiteral("#2e7d32"));
-    appendLog(tr("Resumed."));
+    appendLog(tr("Resume is not supported for the current operation."));
 }
 
 void LTFSWriterWindow::stopJob() {
@@ -176,13 +247,35 @@ void LTFSWriterWindow::stopJob() {
     progressBar_->setValue(progressValue_);
     speedText_->setText(tr("0 MB/s"));
     setStatusLight(tr("Stopped"), QStringLiteral("#c62828"));
-    appendLog(tr("Stopped."));
+    appendLog(tr("Stop requested. Current write cannot be interrupted."));
 }
 
-void LTFSWriterWindow::flushJob() { appendLog(tr("Flush requested.")); }
+void LTFSWriterWindow::flushJob() {
+    std::string err;
+    if (!ensureServiceReady(err)) {
+        appendLog(QString::fromStdString(err));
+        return;
+    }
+    if (!service_->flush(err)) {
+        appendLog(QStringLiteral("Flush failed: %1").arg(QString::fromStdString(err)));
+        setStatusLight(tr("Error"), QStringLiteral("#c62828"));
+        return;
+    }
+    appendLog(tr("Flush complete."));
+}
 
 void LTFSWriterWindow::ejectTape() {
-    appendLog(tr("Eject requested."));
+    std::string err;
+    if (!ensureServiceReady(err)) {
+        appendLog(QString::fromStdString(err));
+        return;
+    }
+    if (!service_->eject(err)) {
+        appendLog(QStringLiteral("Eject failed: %1").arg(QString::fromStdString(err)));
+        setStatusLight(tr("Error"), QStringLiteral("#c62828"));
+        return;
+    }
+    appendLog(tr("Tape unloaded."));
     setStatusLight(tr("Ejected"), QStringLiteral("#455a64"));
 }
 
@@ -192,37 +285,19 @@ void LTFSWriterWindow::browseFiles() {
         const QStringList paths = dialog.selectedPaths();
         if (!paths.isEmpty()) {
             appendLog(tr("Selected files:\n%1").arg(paths.join('\n')));
-            // mark selected in tree if paths match
-            for (int r = 0; r < treeModel_.rowCount(); ++r) {
-                auto *root = treeModel_.item(r, 0);
-                if (!root) continue;
-                QList<QStandardItem *> stack{root};
-                while (!stack.isEmpty()) {
-                    auto *node = stack.takeFirst();
-                    const QString nodePath = node->data(Qt::UserRole + 1).toString();
-                    if (paths.contains(nodePath)) {
-                        node->setCheckState(Qt::Checked);
-                    }
-                    for (int i = 0; i < node->rowCount(); ++i) {
-                        if (auto *child = node->child(i, 0)) stack.append(child);
-                    }
-                }
+            for (const auto &p : paths) {
+                QFileInfo info(p);
+                QStringList parts = info.filePath().split('/', Qt::SkipEmptyParts);
+                ensurePathItem(parts, info.size());
             }
+            ui->treeView->expandAll();
             refreshFileTable(ui->treeView->currentIndex());
         }
     }
 }
 
 void LTFSWriterWindow::updateProgress() {
-    if (paused_) return;
-    progressValue_ = qMin(100, progressValue_ + 2);
-    progressBar_->setValue(progressValue_);
-    speedText_->setText(tr("%1 MB/s").arg(ui->speedLimitSpin->value() == 0 ? 280 : ui->speedLimitSpin->value()));
-    if (progressValue_ >= 100) {
-        progressTimer_.stop();
-        setStatusLight(tr("Completed"), QStringLiteral("#1565c0"));
-        appendLog(tr("Job completed (stub)."));
-    }
+    // progress updates are driven by service callbacks; timer unused
 }
 
 void LTFSWriterWindow::handleTreeChanged(QStandardItem *item) {
@@ -265,6 +340,44 @@ void LTFSWriterWindow::updateParentState(QStandardItem *item) {
         item->setCheckState(Qt::PartiallyChecked);
     }
     updateParentState(item->parent());
+}
+
+std::vector<QString> LTFSWriterWindow::selectedFilePaths() const {
+    std::vector<QString> paths;
+    std::function<void(QStandardItem *)> walk = [&](QStandardItem *item) {
+        if (!item) return;
+        if (item->rowCount() == 0 && item->checkState() == Qt::Checked) {
+            paths.push_back(item->data(Qt::UserRole + 1).toString());
+        }
+        for (int i = 0; i < item->rowCount(); ++i) {
+            walk(item->child(i, 0));
+        }
+    };
+    walk(treeModel_.invisibleRootItem());
+    return paths;
+}
+
+bool LTFSWriterWindow::ensureServiceReady(std::string &err) {
+    if (!service_) service_ = make_ltfs_service();
+    QString path = drivePath_;
+    if (path.isEmpty()) path = ui->drivePathEdit->text();
+    if (path.isEmpty()) {
+        err = "Drive path is not set";
+        return false;
+    }
+
+    auto dev = make_default_device(err);
+    if (!dev) return false;
+    if (!dev->open(path.toStdString(), err)) return false;
+    if (!service_->attach_device(std::move(dev), err)) return false;
+
+    std::string tmp_err;
+    LtfsLabel label{};
+    service_->load_label(label, tmp_err); // best effort
+    LtfsIndex index{};
+    service_->load_index(index, ui->offlineToggle->isChecked(), tmp_err); // best effort
+    err.clear();
+    return true;
 }
 
 } // namespace qlto

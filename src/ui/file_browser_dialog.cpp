@@ -4,6 +4,7 @@
 
 #include <QClipboard>
 #include <QDialogButtonBox>
+#include <QDir>
 #include <QGuiApplication>
 #include <QHeaderView>
 #include <QRegularExpression>
@@ -29,7 +30,7 @@ FileBrowserDialog::FileBrowserDialog(QWidget *parent)
     connect(ui->buttonBox, &QDialogButtonBox::accepted, this, &FileBrowserDialog::acceptAndCollect);
     connect(ui->buttonBox, &QDialogButtonBox::rejected, this, &FileBrowserDialog::reject);
 
-    populateStubTree();
+    populateFileTree();
     ui->treeView->expandAll();
 }
 
@@ -88,39 +89,35 @@ void FileBrowserDialog::acceptAndCollect() {
     accept();
 }
 
-void FileBrowserDialog::populateStubTree() {
+void FileBrowserDialog::populateFileTree() {
     model_.removeRows(0, model_.rowCount());
+    QDir base(QDir::homePath());
+    auto *root = new QStandardItem(base.dirName().isEmpty() ? base.absolutePath() : base.dirName());
+    root->setCheckable(true);
+    root->setCheckState(Qt::Unchecked);
+    root->setEditable(false);
+    auto *sizeRoot = new QStandardItem(QString());
+    auto *pathRoot = new QStandardItem(base.absolutePath());
+    model_.appendRow({root, sizeRoot, pathRoot});
 
-    auto *root = model_.invisibleRootItem();
-
-    auto addFile = [](QStandardItem *parent, const QString &name, qint64 size, const QString &path) {
-        auto *nameItem = new QStandardItem(name);
-        nameItem->setCheckable(true);
-        nameItem->setCheckState(Qt::Unchecked);
-        nameItem->setEditable(false);
-
-        auto *sizeItem = new QStandardItem(QString::number(size / 1024));
-        sizeItem->setEditable(false);
-        auto *pathItem = new QStandardItem(path);
-        pathItem->setEditable(false);
-        parent->appendRow({nameItem, sizeItem, pathItem});
+    std::function<void(QStandardItem *, const QDir &, int)> addDir = [&](QStandardItem *parent, const QDir &dir, int depth) {
+        if (depth > 3) return; // limit depth for performance
+        const auto entries = dir.entryInfoList(QDir::NoDotAndDotDot | QDir::AllEntries, QDir::DirsFirst | QDir::Name);
+        for (const auto &info : entries) {
+            auto *nameItem = new QStandardItem(info.fileName());
+            nameItem->setCheckable(true);
+            nameItem->setCheckState(Qt::Unchecked);
+            nameItem->setEditable(false);
+            auto *sizeItem = new QStandardItem(info.isDir() ? QString() : QString::number(info.size() / 1024));
+            auto *pathItem = new QStandardItem(info.absoluteFilePath());
+            parent->appendRow({nameItem, sizeItem, pathItem});
+            if (info.isDir()) {
+                addDir(nameItem, QDir(info.absoluteFilePath()), depth + 1);
+            }
+        }
     };
 
-    auto *dirA = new QStandardItem(QStringLiteral("ProjectA"));
-    dirA->setCheckable(true);
-    dirA->setCheckState(Qt::Unchecked);
-    dirA->setEditable(false);
-    root->appendRow({dirA, new QStandardItem(QString()), new QStandardItem(QStringLiteral("/ProjectA"))});
-    addFile(dirA, QStringLiteral("clip001.mov"), 4'000'000, QStringLiteral("/ProjectA/clip001.mov"));
-    addFile(dirA, QStringLiteral("clip002.mov"), 2'400'000, QStringLiteral("/ProjectA/clip002.mov"));
-
-    auto *dirB = new QStandardItem(QStringLiteral("ProjectB"));
-    dirB->setCheckable(true);
-    dirB->setCheckState(Qt::Unchecked);
-    dirB->setEditable(false);
-    root->appendRow({dirB, new QStandardItem(QString()), new QStandardItem(QStringLiteral("/ProjectB"))});
-    addFile(dirB, QStringLiteral("assets.zip"), 150'000, QStringLiteral("/ProjectB/assets.zip"));
-    addFile(dirB, QStringLiteral("notes.txt"), 12'000, QStringLiteral("/ProjectB/notes.txt"));
+    addDir(root, base, 0);
 }
 
 void FileBrowserDialog::setCheckStateRecursive(QStandardItem *item, Qt::CheckState state) {

@@ -28,7 +28,7 @@ private slots:
     void acceptAndCollect();
 
 private:
-    void populateStubTree();
+     void populateFileTree();
     void setCheckStateRecursive(QStandardItem *item, Qt::CheckState state);
     void selectByPredicate(const std::function<bool(QStandardItem *)> &pred);
 

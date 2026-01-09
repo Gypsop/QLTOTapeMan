@@ -25,7 +25,7 @@
         <layout class="QHBoxLayout" name="deviceToolbarLayout">
          <item><widget class="QPushButton" name="refreshButton"><property name="text"><string>Refresh</string></property></widget></item>
          <item><widget class="QCheckBox" name="autoRefreshCheck"><property name="text"><string>Auto Refresh</string></property></widget></item>
-         <item><widget class="QLineEdit" name="devicePathEdit"><property name="placeholderText"><string>Device path override</string></property></widget></item>
+         <item><widget class="QLineEdit" name="devicePathEdit"/></item>
          <item><widget class="QPushButton" name="openWriterButton"><property name="text"><string>Open LTFSWriter</string></property></widget></item>
          <item><widget class="QPushButton" name="toggleDebugButton"><property name="text"><string>Debug Panel</string></property></widget></item>
          <item><spacer name="spacer1"><property name="orientation"><enum>Qt::Horizontal</enum></property><property name="sizeType"><enum>QSizePolicy::Expanding</enum></property></spacer></item>
@@ -75,7 +75,6 @@
        <item row="2" column="0" colspan="4">
         <widget class="QPlainTextEdit" name="debugOutput">
          <property name="readOnly"><bool>true</bool></property>
-         <property name="placeholderText"><string>Debug output...</string></property>
         </widget>
        </item>
       </layout>
