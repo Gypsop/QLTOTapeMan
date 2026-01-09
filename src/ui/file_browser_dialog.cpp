@@ -47,7 +47,8 @@ void FileBrowserDialog::selectBySize() {
     const int thresholdKb = ui->sizeSpin->value();
     selectByPredicate([thresholdKb](QStandardItem *item) {
         if (!item || item->rowCount() > 0) return false; // directories skipped
-        const QString sizeText = item->sibling(item->row(), 1).data(Qt::DisplayRole).toString();
+        const QModelIndex idx = item->index();
+        const QString sizeText = idx.sibling(idx.row(), 1).data(Qt::DisplayRole).toString();
         const QString numeric = sizeText.split(' ').first();
         bool ok = false;
         const int sizeVal = numeric.toInt(&ok);
@@ -74,7 +75,8 @@ void FileBrowserDialog::acceptAndCollect() {
             auto *child = node->child(i, 0);
             if (!child) continue;
             if (child->checkState() == Qt::Checked && child->rowCount() == 0) {
-                const QString path = child->sibling(child->row(), 2).data(Qt::DisplayRole).toString();
+                const QModelIndex idx = child->index();
+                const QString path = idx.sibling(idx.row(), 2).data(Qt::DisplayRole).toString();
                 selected_.push_back(path);
             }
             stack.append(child);
