@@ -31,13 +31,13 @@ std::vector<BlockDevice> TapeEnumeratorWin::list(std::string &err) {
             continue;
         }
         DWORD required = 0;
-        SetupDiGetDeviceInterfaceDetail(hDevInfo, &ifData, nullptr, 0, &required, nullptr);
-        std::vector<char> buffer(required);
-        auto *detail = reinterpret_cast<SP_DEVICE_INTERFACE_DETAIL_DATA *>(buffer.data());
-        detail->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA);
+        SetupDiGetDeviceInterfaceDetailW(hDevInfo, &ifData, nullptr, 0, &required, nullptr);
+        std::vector<std::uint8_t> buffer(required);
+        auto *detail = reinterpret_cast<SP_DEVICE_INTERFACE_DETAIL_DATA_W *>(buffer.data());
+        detail->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W);
         SP_DEVINFO_DATA devInfo{};
         devInfo.cbSize = sizeof(SP_DEVINFO_DATA);
-        if (!SetupDiGetDeviceInterfaceDetail(hDevInfo, &ifData, detail, required, nullptr, &devInfo)) {
+        if (!SetupDiGetDeviceInterfaceDetailW(hDevInfo, &ifData, detail, required, nullptr, &devInfo)) {
             continue;
         }
         std::wstring wpath(detail->DevicePath);
