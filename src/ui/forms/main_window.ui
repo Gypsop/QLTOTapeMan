@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>960</width>
+    <height>640</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>QLTOTapeMan - Configurator</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <item>
+     <widget class="QGroupBox" name="deviceGroup">
+      <property name="title">
+       <string>Devices</string>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_2">
+       <item>
+        <layout class="QHBoxLayout" name="deviceToolbarLayout">
+         <item><widget class="QPushButton" name="refreshButton"><property name="text"><string>Refresh</string></property></widget></item>
+         <item><widget class="QCheckBox" name="autoRefreshCheck"><property name="text"><string>Auto Refresh</string></property></widget></item>
+         <item><widget class="QLineEdit" name="devicePathEdit"><property name="placeholderText"><string>Device path override</string></property></widget></item>
+         <item><widget class="QPushButton" name="openWriterButton"><property name="text"><string>Open LTFSWriter</string></property></widget></item>
+         <item><widget class="QPushButton" name="toggleDebugButton"><property name="text"><string>Debug Panel</string></property></widget></item>
+         <item><spacer name="spacer1"><property name="orientation"><enum>Qt::Horizontal</enum></property><property name="sizeType"><enum>QSizePolicy::Expanding</enum></property></spacer></item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QTableView" name="deviceView">
+         <property name="selectionBehavior"><enum>QAbstractItemView::SelectRows</enum></property>
+         <property name="selectionMode"><enum>QAbstractItemView::SingleSelection</enum></property>
+         <property name="alternatingRowColors"><bool>true</bool></property>
+         <property name="sortingEnabled"><bool>true</bool></property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QGridLayout" name="deviceButtonsLayout">
+         <item row="0" column="0"><widget class="QPushButton" name="loadButton"><property name="text"><string>Load</string></property></widget></item>
+         <item row="0" column="1"><widget class="QPushButton" name="unloadButton"><property name="text"><string>Unload</string></property></widget></item>
+         <item row="0" column="2"><widget class="QPushButton" name="mountButton"><property name="text"><string>Mount</string></property></widget></item>
+         <item row="0" column="3"><widget class="QPushButton" name="unmountButton"><property name="text"><string>Unmount</string></property></widget></item>
+         <item row="0" column="4"><widget class="QPushButton" name="mapDriveButton"><property name="text"><string>Map Drive</string></property></widget></item>
+         <item row="0" column="5"><widget class="QPushButton" name="remountButton"><property name="text"><string>Remount</string></property></widget></item>
+         <item row="0" column="6"><widget class="QPushButton" name="enterWriterButton"><property name="text"><string>Enter Writer</string></property></widget></item>
+         <item row="0" column="7"><widget class="QPushButton" name="cleanButton"><property name="text"><string>Clean</string></property></widget></item>
+         <item row="0" column="8"><widget class="QPushButton" name="logSenseButton"><property name="text"><string>LogSense</string></property></widget></item>
+         <item row="1" column="0" colspan="9">
+          <layout class="QHBoxLayout" name="statusLayout">
+           <item><widget class="QLabel" name="statusLabel"><property name="text"><string>Status: Idle</string></property></widget></item>
+           <item><spacer name="spacer2"><property name="orientation"><enum>Qt::Horizontal</enum></property><property name="sizeType"><enum>QSizePolicy::Expanding</enum></property></spacer></item>
+          </layout>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QGroupBox" name="debugGroup">
+      <property name="title"><string>Debug Panel</string></property>
+      <property name="visible"><bool>false</bool></property>
+      <layout class="QGridLayout" name="debugLayout">
+       <item row="0" column="0"><widget class="QLabel" name="cdbLabel"><property name="text"><string>SCSI CDB (hex):</string></property></widget></item>
+       <item row="0" column="1" colspan="3"><widget class="QLineEdit" name="cdbInput"/></item>
+       <item row="1" column="0"><widget class="QLabel" name="logSenseLabel"><property name="text"><string>LogSense Page:</string></property></widget></item>
+       <item row="1" column="1"><widget class="QSpinBox" name="logSensePage"><property name="maximum"><number>255</number></property></widget></item>
+       <item row="1" column="2"><widget class="QPushButton" name="sendCdbButton"><property name="text"><string>Send SCSI</string></property></widget></item>
+       <item row="1" column="3"><widget class="QPushButton" name="exportLogButton"><property name="text"><string>Export LogSense</string></property></widget></item>
+       <item row="2" column="0" colspan="4">
+        <widget class="QPlainTextEdit" name="debugOutput">
+         <property name="readOnly"><bool>true</bool></property>
+         <property name="placeholderText"><string>Debug output...</string></property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QGroupBox" name="logGroup">
+      <property name="title"><string>Log</string></property>
+      <layout class="QVBoxLayout" name="logLayout">
+       <item><widget class="QPlainTextEdit" name="logEdit"><property name="readOnly"><bool>true</bool></property></widget></item>
+      </layout>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

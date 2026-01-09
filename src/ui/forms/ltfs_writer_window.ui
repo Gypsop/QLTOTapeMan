@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>LTFSWriterWindow</class>
+ <widget class="QMainWindow" name="LTFSWriterWindow">
+  <property name="geometry">
+   <rect><x>0</x><y>0</y><width>1100</width><height>720</height></rect>
+  </property>
+  <property name="windowTitle">
+   <string>QLTOTapeMan - LTFSWriter</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <item>
+     <widget class="QGroupBox" name="controlGroup">
+      <property name="title"><string>Controls</string></property>
+      <layout class="QGridLayout" name="gridLayout">
+       <item row="0" column="0"><widget class="QLabel" name="modeLabel"><property name="text"><string>Mode</string></property></widget></item>
+       <item row="0" column="1"><widget class="QComboBox" name="modeCombo"><item><property name="text"><string>Online</string></property></item><item><property name="text"><string>Offline</string></property></item></widget></item>
+       <item row="0" column="2"><widget class="QLabel" name="driveLabel"><property name="text"><string>Drive</string></property></widget></item>
+       <item row="0" column="3"><widget class="QLineEdit" name="drivePathEdit"><property name="placeholderText"><string>/dev/st0</string></property></widget></item>
+       <item row="0" column="4"><widget class="QLabel" name="blockLabel"><property name="text"><string>Block Size</string></property></widget></item>
+       <item row="0" column="5"><widget class="QSpinBox" name="blockSizeSpin"><property name="minimum"><number>64</number></property><property name="maximum"><number>4096</number></property><property name="singleStep"><number>64</number></property><property name="suffix"><string> KB</string></property><property name="value"><number>512</number></property></widget></item>
+       <item row="1" column="0"><widget class="QLabel" name="hashLabel"><property name="text"><string>Hash</string></property></widget></item>
+       <item row="1" column="1"><widget class="QCheckBox" name="hashCheck"><property name="text"><string>Enable CRC32</string></property><property name="checked"><bool>true</bool></property></widget></item>
+       <item row="1" column="2"><widget class="QLabel" name="speedLabel"><property name="text"><string>Speed Limit</string></property></widget></item>
+       <item row="1" column="3"><widget class="QSpinBox" name="speedLimitSpin"><property name="maximum"><number>100000</number></property><property name="suffix"><string> MB/s</string></property><property name="value"><number>0</number></property><property name="specialValueText"><string>Unlimited</string></property></widget></item>
+       <item row="1" column="4"><widget class="QLabel" name="indexLabel"><property name="text"><string>Index Interval</string></property></widget></item>
+       <item row="1" column="5"><widget class="QSpinBox" name="indexIntervalSpin"><property name="maximum"><number>600</number></property><property name="value"><number>60</number></property><property name="suffix"><string> s</string></property></widget></item>
+       <item row="2" column="0"><widget class="QLabel" name="capacityLabel"><property name="text"><string>Capacity Refresh</string></property></widget></item>
+       <item row="2" column="1"><widget class="QSpinBox" name="capacityIntervalSpin"><property name="maximum"><number>600</number></property><property name="value"><number>30</number></property><property name="suffix"><string> s</string></property></widget></item>
+       <item row="2" column="2"><widget class="QLabel" name="extraPartitionLabel"><property name="text"><string>Extra Partition</string></property></widget></item>
+       <item row="2" column="3"><widget class="QSpinBox" name="extraPartitionSpin"><property name="minimum"><number>0</number></property><property name="maximum"><number>2</number></property></widget></item>
+       <item row="2" column="4"><widget class="QLabel" name="encryptionLabel"><property name="text"><string>Encryption Key</string></property></widget></item>
+       <item row="2" column="5"><widget class="QLineEdit" name="encryptionKeyEdit"><property name="echoMode"><enum>QLineEdit::Password</enum></property></widget></item>
+       <item row="3" column="0"><widget class="QCheckBox" name="autoExportCheck"><property name="text"><string>Auto export index</string></property></widget></item>
+       <item row="3" column="1"><widget class="QCheckBox" name="autoCleanCheck"><property name="text"><string>Auto clean</string></property></widget></item>
+       <item row="3" column="2"><widget class="QCheckBox" name="extraPartitionCheck"><property name="text"><string>Use extra partition</string></property></widget></item>
+       <item row="3" column="3"><widget class="QCheckBox" name="offlineToggle"><property name="text"><string>Offline mode</string></property></widget></item>
+       <item row="3" column="4"><widget class="QLabel" name="barcodeLabel"><property name="text"><string>Barcode</string></property></widget></item>
+       <item row="3" column="5"><widget class="QLineEdit" name="barcodeEdit"/></item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <layout class="QHBoxLayout" name="toolbarLayout">
+      <item><widget class="QPushButton" name="startButton"><property name="text"><string>Start</string></property></widget></item>
+      <item><widget class="QPushButton" name="pauseButton"><property name="text"><string>Pause</string></property></widget></item>
+      <item><widget class="QPushButton" name="resumeButton"><property name="text"><string>Resume</string></property></widget></item>
+      <item><widget class="QPushButton" name="stopButton"><property name="text"><string>Stop</string></property></widget></item>
+      <item><widget class="QPushButton" name="flushButton"><property name="text"><string>Flush</string></property></widget></item>
+      <item><widget class="QPushButton" name="ejectButton"><property name="text"><string>Eject</string></property></widget></item>
+      <item><widget class="QPushButton" name="browseButton"><property name="text"><string>Browse Files</string></property></widget></item>
+      <item><spacer name="spacerToolbar"><property name="orientation"><enum>Qt::Horizontal</enum></property><property name="sizeType"><enum>QSizePolicy::Expanding</enum></property></spacer></item>
+      <item><widget class="QLabel" name="statusLight"><property name="text"><string>Idle</string></property></widget></item>
+     </layout>
+    </item>
+    <item>
+     <widget class="QSplitter" name="splitter" orientation="Qt::Horizontal">
+      <widget class="QTreeView" name="treeView">
+       <property name="alternatingRowColors"><bool>true</bool></property>
+       <property name="headerHidden"><bool>false</bool></property>
+      </widget>
+      <widget class="QTableView" name="fileTable">
+       <property name="selectionBehavior"><enum>QAbstractItemView::SelectRows</enum></property>
+       <property name="alternatingRowColors"><bool>true</bool></property>
+       <property name="sortingEnabled"><bool>true</bool></property>
+      </widget>
+     </widget>
+    </item>
+    <item>
+     <widget class="QGroupBox" name="logGroup">
+      <property name="title"><string>Log</string></property>
+      <layout class="QVBoxLayout" name="logLayout">
+       <item><widget class="QPlainTextEdit" name="logEdit"><property name="readOnly"><bool>true</bool></property></widget></item>
+      </layout>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QStatusBar" name="statusbar">
+   <property name="sizeGripEnabled"><bool>true</bool></property>
+  </widget>
+  <customwidgets/>
+  <resources/>
+  <connections/>
+ </widget>
+</ui>

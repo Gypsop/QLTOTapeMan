@@ -1,9 +1,10 @@
 #include <QApplication>
-#include <QLabel>
+
+#include "../ui/main_window.h"
 
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
-    QLabel splash(QObject::tr("QLTOTapeMan initialized (skeleton build)"));
-    splash.show();
+    qlto::MainWindow w;
+    w.show();
     return app.exec();
 }

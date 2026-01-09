@@ -5,6 +5,10 @@ set(QLTO_INCLUDE_DIRS
     ${QLTO_ROOT}/..
 )
 
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOUIC ON)
+
 # Core library
 set(QLTO_CORE_SOURCES
     core/ltfs_index.cpp
@@ -62,9 +66,22 @@ set(QLTO_PIPELINE_SOURCES
 add_library(qlto_pipeline STATIC ${QLTO_PIPELINE_SOURCES})
 target_include_directories(qlto_pipeline PUBLIC ${QLTO_INCLUDE_DIRS})
 
-# UI placeholder interface (no QML, only Widgets later)
-add_library(qlto_ui INTERFACE)
-target_include_directories(qlto_ui INTERFACE ${QLTO_INCLUDE_DIRS})
+# UI widgets implementation
+set(QLTO_UI_FORMS
+    ui/forms/main_window.ui
+    ui/forms/ltfs_writer_window.ui
+    ui/forms/file_browser_dialog.ui
+)
+
+set(QLTO_UI_SOURCES
+    ui/main_window.cpp
+    ui/ltfs_writer_window.cpp
+    ui/file_browser_dialog.cpp
+)
+
+add_library(qlto_ui STATIC ${QLTO_UI_SOURCES} ${QLTO_UI_FORMS})
+target_include_directories(qlto_ui PUBLIC ${QLTO_INCLUDE_DIRS})
+target_link_libraries(qlto_ui PUBLIC Qt6::Widgets Qt6::Network Qt6::Concurrent qlto_core qlto_io qlto_pipeline)
 
 # Main executable
 add_executable(qltotapeman app/main.cpp)
