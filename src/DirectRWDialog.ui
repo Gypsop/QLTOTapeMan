@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>DirectRWDialog</class>
+ <widget class="QDialog" name="DirectRWDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1100</width>
+    <height>720</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>直接读写</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <layout class="QHBoxLayout" name="layoutDevices">
+     <item>
+      <widget class="QLabel" name="labelDevice">
+       <property name="text">
+      <string>设备选择</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="comboDevices"/>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnRefresh">
+       <property name="text">
+      <string>刷新</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnRewind">
+       <property name="text">
+                <string>倒带</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnLocate">
+       <property name="text">
+                <string>定位</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnEject">
+       <property name="text">
+        <string>卸载/弹出</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+       <item>
+        <layout class="QHBoxLayout" name="layoutActions">
+         <item>
+          <widget class="QPushButton" name="btnAddFiles">
+           <property name="text">
+        <string>添加文件...</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="btnImportDir">
+           <property name="text">
+        <string>添加目录...</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="btnAddFolder">
+           <property name="text">
+        <string>新建目录</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="btnRename">
+           <property name="text">
+        <string>重命名</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="btnDelete">
+           <property name="text">
+        <string>删除</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="horizontalSpacerActions">
+           <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </item>
+   <item>
+    <widget class="QSplitter" name="splitter">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <widget class="QWidget" name="leftPane">
+      <layout class="QVBoxLayout" name="verticalLayoutLeft">
+       <item>
+        <widget class="QLabel" name="labelTape">
+         <property name="text">
+            <string>当前磁带</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QTreeView" name="treeTapeCurrent">
+         <property name="editTriggers">
+          <set>QAbstractItemView::NoEditTriggers</set>
+         </property>
+         <property name="dragEnabled">
+          <bool>false</bool>
+         </property>
+         <property name="dragDropMode">
+          <enum>QAbstractItemView::NoDragDrop</enum>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="rightPane">
+      <layout class="QVBoxLayout" name="verticalLayoutRight">
+             <item>
+                <widget class="QLabel" name="labelChildren">
+                 <property name="text">
+                    <string>目录内容</string>
+                 </property>
+                </widget>
+             </item>
+             <item>
+                <widget class="QTreeView" name="treeChildren">
+                 <property name="editTriggers">
+                    <set>QAbstractItemView::NoEditTriggers</set>
+                 </property>
+                 <property name="selectionBehavior">
+                    <enum>QAbstractItemView::SelectRows</enum>
+                 </property>
+                 <property name="uniformRowHeights">
+                    <bool>true</bool>
+                 </property>
+                </widget>
+             </item>
+             <item>
+                <widget class="QLabel" name="labelLog">
+                 <property name="text">
+                    <string>日志</string>
+                 </property>
+                </widget>
+             </item>
+             <item>
+                <widget class="QTextEdit" name="textLog">
+                 <property name="readOnly">
+                    <bool>true</bool>
+                 </property>
+                </widget>
+             </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

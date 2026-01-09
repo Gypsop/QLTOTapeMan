@@ -2,15 +2,8 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
-#include <QProgressBar>
-#include <QLabel>
-#include <QPushButton>
-#include <QTimer>
-#include <QFutureWatcher>
-#include "device/DeviceManager.h"
-#include "device/LtfsManager.h"
-#include "ltfs/IndexManager.h"
-#include "ui/FileBrowserWidget.h"
+#include <QList>
+#include "DeviceManager.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -21,73 +14,19 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
 public:
-    MainWindow(QWidget *parent = nullptr);
+    explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
 private slots:
-    void on_btnScan_clicked();
-    void on_treeDevices_itemSelectionChanged();
-    
-    void on_btnStatus_clicked();
-    void on_btnRewind_clicked();
-    void on_btnEject_clicked();
-    void on_btnFormat_clicked();
-    void on_btnCheck_clicked(); // Restore/Check
-    void on_btnMount_clicked();
-    void on_btnUnmount_clicked();
-
-    void onLtfsOperationFinished(const QString &operation, bool success, const QString &message);
-    void onLtfsOutputReceived(const QString &text);
-    
-    // Async slots
-    void onAsyncOperationFinished();
-    void onStatusRetrieved();
-
-    // Menu slots
-    void on_actionSettings_triggered();
-    void on_actionExit_triggered();
-    void on_actionAbout_triggered();
-    
-    void on_tabWidget_currentChanged(int index);
-    
-    void onFilesDropped(const QStringList &files);
-    
-    // Advanced Operations
-    void on_btnErase_clicked();
-    void on_btnSetBlock_clicked();
-    void on_btnPartition_clicked();
-    void on_btnRawRead_clicked();
+    void on_btnRefresh_clicked();
     void on_btnDirectRW_clicked();
 
 private:
-    Ui::MainWindow *ui;
-    DeviceManager *m_deviceManager;
-    LtfsManager *m_ltfsManager;
-    IndexManager *m_indexManager;
-    FileBrowserWidget *m_fileBrowser;
-    
-    // Status Bar Widgets
-    QProgressBar *m_progressBar;
-    QLabel *m_statusLabel;
-    QPushButton *m_btnStop; // Global Stop Button
-    
-    QTimer *m_statusTimer;
-    
-    // Async Watcher
-    QFutureWatcher<bool> m_futureWatcher;
-    QFutureWatcher<TapeStatus> m_statusWatcher;
-    
-    QString m_currentMountSerial;
-    QString m_currentMountPoint;
+    void refreshDeviceList();
 
-    QString m_currentAsyncOperation;
-    
-    QString getSelectedDevicePath();
-    void logMessage(const QString &message);
-    void setBusy(bool busy, const QString &message = QString());
-    
-private slots:
-    void onStatusTimerTick();
-    void onStopClicked();
+    Ui::MainWindow *ui;
+    DeviceManager m_deviceManager;
+    QList<TapeDeviceInfo> m_devices;
 };
+
 #endif // MAINWINDOW_H

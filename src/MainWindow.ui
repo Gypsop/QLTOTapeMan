@@ -6,234 +6,65 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>800</width>
-    <height>600</height>
+    <width>960</width>
+    <height>640</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>QLTOTapeMan</string>
   </property>
-  <widget class="QWidget" name="centralwidget">
-   <layout class="QVBoxLayout" name="verticalLayout">
-    <item>
-     <widget class="QTabWidget" name="tabWidget">
-      <property name="currentIndex">
-       <number>0</number>
-      </property>
-      <widget class="QWidget" name="tabDevice">
-       <attribute name="title">
-        <string>Device Control</string>
-       </attribute>
-       <layout class="QVBoxLayout" name="verticalLayout_Device">
+    <widget class="QWidget" name="centralwidget">
+     <layout class="QVBoxLayout" name="verticalLayout">
         <item>
-         <widget class="QPushButton" name="btnScan">
-          <property name="text">
-           <string>Scan Devices</string>
-          </property>
+         <widget class="QGroupBox" name="groupDirect">
+            <property name="title">
+             <string>直接读写</string>
+            </property>
+            <layout class="QHBoxLayout" name="horizontalLayout">
+             <item>
+                <widget class="QLabel" name="labelDevice">
+                 <property name="text">
+                    <string>设备选择</string>
+                 </property>
+                </widget>
+             </item>
+             <item>
+                <widget class="QComboBox" name="comboDevices">
+                 <property name="sizePolicy">
+                    <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                     <horstretch>0</horstretch>
+                     <verstretch>0</verstretch>
+                    </sizepolicy>
+                 </property>
+                </widget>
+             </item>
+             <item>
+                <widget class="QPushButton" name="btnRefresh">
+                 <property name="text">
+                    <string>刷新</string>
+                 </property>
+                </widget>
+             </item>
+             <item>
+                <widget class="QPushButton" name="btnDirectRW">
+                 <property name="text">
+                    <string>直接读写</string>
+                 </property>
+                </widget>
+             </item>
+            </layout>
          </widget>
         </item>
         <item>
-         <widget class="QTreeWidget" name="treeDevices">
-          <column>
-           <property name="text">
-            <string>Device Path</string>
-           </property>
-          </column>
-          <column>
-           <property name="text">
-            <string>Vendor</string>
-           </property>
-          </column>
-          <column>
-           <property name="text">
-            <string>Product</string>
-           </property>
-          </column>
-          <column>
-           <property name="text">
-            <string>Serial Number</string>
-           </property>
-          </column>
+         <widget class="QLabel" name="labelVersion">
+            <property name="text">
+             <string>当前版本：</string>
+            </property>
          </widget>
         </item>
-        <item>
-         <widget class="QGroupBox" name="groupBoxOperations">
-          <property name="enabled">
-           <bool>false</bool>
-          </property>
-          <property name="title">
-           <string>Tape Operations</string>
-          </property>
-          <layout class="QHBoxLayout" name="horizontalLayout">
-           <item>
-            <widget class="QPushButton" name="btnStatus">
-             <property name="text">
-              <string>Check Status</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="btnRewind">
-             <property name="text">
-              <string>Rewind</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="btnEject">
-             <property name="text">
-              <string>Eject</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="btnFormat">
-             <property name="text">
-              <string>Format</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="btnCheck">
-             <property name="text">
-              <string>Restore/Check</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="btnMount">
-             <property name="text">
-              <string>Mount</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="btnUnmount">
-             <property name="text">
-              <string>Unmount</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </widget>
-        </item>
-        <item>
-         <widget class="QGroupBox" name="grpAdvancedOps">
-          <property name="enabled">
-           <bool>false</bool>
-          </property>
-          <property name="title">
-           <string>Advanced Operations</string>
-          </property>
-          <layout class="QHBoxLayout" name="horizontalLayout_Adv">
-           <item>
-            <widget class="QPushButton" name="btnErase">
-             <property name="text">
-              <string>Erase Tape</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="btnSetBlock">
-             <property name="text">
-              <string>Set Block Size</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="btnPartition">
-             <property name="text">
-              <string>Partition</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="btnRawRead">
-             <property name="text">
-              <string>Raw Read to File</string>
-             </property>
-            </widget>
-           </item>
-              <item>
-               <widget class="QPushButton" name="btnDirectRW">
-                <property name="text">
-                 <string>Direct RW...</string>
-                </property>
-               </widget>
-              </item>
-          </layout>
-         </widget>
-        </item>
-        <item>
-         <widget class="QGroupBox" name="groupBoxLog">
-          <property name="title">
-           <string>Operation Log</string>
-          </property>
-          <layout class="QVBoxLayout" name="verticalLayout_2">
-           <item>
-            <widget class="QTextEdit" name="textLog">
-             <property name="readOnly">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </widget>
-        </item>
-       </layout>
-      </widget>
-      <widget class="QWidget" name="tabBrowser">
-       <attribute name="title">
-        <string>File Browser</string>
-       </attribute>
-       <layout class="QVBoxLayout" name="verticalLayout_Browser"/>
-      </widget>
-     </widget>
-    </item>
-   </layout>
-  </widget>
-  <widget class="QMenuBar" name="menubar">
-   <property name="geometry">
-    <rect>
-     <x>0</x>
-     <y>0</y>
-     <width>800</width>
-     <height>30</height>
-    </rect>
-   </property>
-   <widget class="QMenu" name="menuFile">
-    <property name="title">
-     <string>File</string>
-    </property>
-    <addaction name="actionSettings"/>
-    <addaction name="separator"/>
-    <addaction name="actionExit"/>
-   </widget>
-   <widget class="QMenu" name="menuHelp">
-    <property name="title">
-     <string>Help</string>
-    </property>
-    <addaction name="actionAbout"/>
-   </widget>
-   <addaction name="menuFile"/>
-   <addaction name="menuHelp"/>
-  </widget>
+     </layout>
+    </widget>
   <widget class="QStatusBar" name="statusbar"/>
-  <action name="actionSettings">
-   <property name="text">
-    <string>Settings...</string>
-   </property>
-  </action>
-  <action name="actionExit">
-   <property name="text">
-    <string>Exit</string>
-   </property>
-  </action>
-  <action name="actionAbout">
-   <property name="text">
-    <string>About</string>
-   </property>
-  </action>
  </widget>
  <resources/>
  <connections/>
