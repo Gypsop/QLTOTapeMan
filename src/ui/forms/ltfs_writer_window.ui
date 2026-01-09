@@ -54,8 +54,11 @@
       <item><widget class="QLabel" name="statusLight"><property name="text"><string>Idle</string></property></widget></item>
      </layout>
     </item>
-    <item>
-     <widget class="QSplitter" name="splitter" orientation="Qt::Horizontal">
+        <item>
+         <widget class="QSplitter" name="splitter">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
       <widget class="QTreeView" name="treeView">
        <property name="alternatingRowColors"><bool>true</bool></property>
        <property name="headerHidden"><bool>false</bool></property>
@@ -80,8 +83,7 @@
   <widget class="QStatusBar" name="statusbar">
    <property name="sizeGripEnabled"><bool>true</bool></property>
   </widget>
-  <customwidgets/>
-  <resources/>
-  <connections/>
  </widget>
+ <resources/>
+ <connections/>
 </ui>
