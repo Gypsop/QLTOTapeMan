@@ -2,7 +2,6 @@
 
 # Reference upstream VB project (kept locally, not tracked)
 ref_LTFSCopyGUI/
-docs/rewrite_plan.md
 
 # Build outputs
 build/
