@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+ QLTOTapeMan - Qt-based LTO Tape Manager
+
+ Copyright (c) 2026 Jeffrey ZHU (zhxsh1225@gmail.com)
+ https://github.com/Gypsop/QLTOTapeMan
+-->
+<ui version="4.0">
+ <class>DeviceSelectWidget</class>
+ <widget class="QWidget" name="DeviceSelectWidget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>600</width>
+    <height>40</height>
+   </rect>
+  </property>
+  <layout class="QHBoxLayout" name="mainLayout">
+   <property name="leftMargin">
+    <number>0</number>
+   </property>
+   <property name="topMargin">
+    <number>0</number>
+   </property>
+   <property name="rightMargin">
+    <number>0</number>
+   </property>
+   <property name="bottomMargin">
+    <number>0</number>
+   </property>
+   <property name="spacing">
+    <number>5</number>
+   </property>
+
+   <item>
+    <widget class="QLabel" name="lblDevice">
+     <property name="text">
+      <string>Tape Device:</string>
+     </property>
+    </widget>
+   </item>
+
+   <item>
+    <widget class="QComboBox" name="deviceCombo">
+     <property name="minimumWidth">
+      <number>300</number>
+     </property>
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+       <horstretch>1</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+    </widget>
+   </item>
+
+   <item>
+    <widget class="QPushButton" name="refreshButton">
+     <property name="text">
+      <string>Refresh</string>
+     </property>
+    </widget>
+   </item>
+
+   <item>
+    <widget class="QPushButton" name="connectButton">
+     <property name="text">
+      <string>Connect</string>
+     </property>
+    </widget>
+   </item>
+
+   <item>
+    <widget class="QPushButton" name="disconnectButton">
+     <property name="text">
+      <string>Disconnect</string>
+     </property>
+     <property name="enabled">
+      <bool>false</bool>
+     </property>
+    </widget>
+   </item>
+
+   <item>
+    <widget class="QLabel" name="statusLabel">
+     <property name="text">
+      <string>●</string>
+     </property>
+     <property name="styleSheet">
+      <string>color: gray;</string>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

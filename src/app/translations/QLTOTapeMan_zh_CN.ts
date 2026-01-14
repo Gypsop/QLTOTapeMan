@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE TS>
+<!--
+ QLTOTapeMan - Qt-based LTO Tape Manager
+
+ Copyright (c) 2026 Jeffrey ZHU (zhxsh1225@gmail.com)
+ https://github.com/Gypsop/QLTOTapeMan
+-->
+<TS version="2.1" language="zh_CN">
+<context>
+    <name>qltfs::app::MainWindow</name>
+    <message>
+        <source>QLTOTapeMan</source>
+        <translation>QLTOTapeMan</translation>
+    </message>
+    <message>
+        <source>&amp;File</source>
+        <translation>文件(&amp;F)</translation>
+    </message>
+    <message>
+        <source>&amp;Device</source>
+        <translation>设备(&amp;D)</translation>
+    </message>
+    <message>
+        <source>&amp;Tape</source>
+        <translation>磁带(&amp;T)</translation>
+    </message>
+    <message>
+        <source>&amp;View</source>
+        <translation>视图(&amp;V)</translation>
+    </message>
+    <message>
+        <source>&amp;Settings</source>
+        <translation>设置(&amp;S)</translation>
+    </message>
+    <message>
+        <source>&amp;Help</source>
+        <translation>帮助(&amp;H)</translation>
+    </message>
+    <message>
+        <source>E&amp;xit</source>
+        <translation>退出(&amp;X)</translation>
+    </message>
+    <message>
+        <source>&amp;Connect</source>
+        <translation>连接(&amp;C)</translation>
+    </message>
+    <message>
+        <source>&amp;Disconnect</source>
+        <translation>断开(&amp;D)</translation>
+    </message>
+    <message>
+        <source>&amp;Refresh</source>
+        <translation>刷新(&amp;R)</translation>
+    </message>
+    <message>
+        <source>&amp;About</source>
+        <translation>关于(&amp;A)</translation>
+    </message>
+    <message>
+        <source>Ready</source>
+        <translation>就绪</translation>
+    </message>
+    <message>
+        <source>Not connected</source>
+        <translation>未连接</translation>
+    </message>
+    <message>
+        <source>Connected</source>
+        <translation>已连接</translation>
+    </message>
+</context>
+<context>
+    <name>qltfs::app::LtfsWriterWindow</name>
+    <message>
+        <source>LTFS Writer - Direct Read/Write</source>
+        <translation>LTFS 写入器 - 直接读写</translation>
+    </message>
+    <message>
+        <source>Start Write</source>
+        <translation>开始写入</translation>
+    </message>
+    <message>
+        <source>Pause</source>
+        <translation>暂停</translation>
+    </message>
+    <message>
+        <source>Stop</source>
+        <translation>停止</translation>
+    </message>
+    <message>
+        <source>Eject Tape</source>
+        <translation>弹出磁带</translation>
+    </message>
+    <message>
+        <source>Flush Index</source>
+        <translation>刷新索引</translation>
+    </message>
+    <message>
+        <source>Speed Limit</source>
+        <translation>速度限制</translation>
+    </message>
+    <message>
+        <source>No Limit</source>
+        <translation>无限制</translation>
+    </message>
+    <message>
+        <source>Index Interval</source>
+        <translation>索引间隔</translation>
+    </message>
+    <message>
+        <source>Capacity</source>
+        <translation>容量</translation>
+    </message>
+</context>
+<context>
+    <name>qltfs::app::FileBrowserDialog</name>
+    <message>
+        <source>File Browser</source>
+        <translation>文件浏览器</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation>名称</translation>
+    </message>
+    <message>
+        <source>Size</source>
+        <translation>大小</translation>
+    </message>
+    <message>
+        <source>Modified</source>
+        <translation>修改时间</translation>
+    </message>
+    <message>
+        <source>OK</source>
+        <translation>确定</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>取消</translation>
+    </message>
+</context>
+<context>
+    <name>qltfs::app::SettingsDialog</name>
+    <message>
+        <source>Settings</source>
+        <translation>设置</translation>
+    </message>
+    <message>
+        <source>General</source>
+        <translation>常规</translation>
+    </message>
+    <message>
+        <source>Write</source>
+        <translation>写入</translation>
+    </message>
+    <message>
+        <source>Device</source>
+        <translation>设备</translation>
+    </message>
+    <message>
+        <source>Advanced</source>
+        <translation>高级</translation>
+    </message>
+    <message>
+        <source>OK</source>
+        <translation>确定</translation>
+    </message>
+    <message>
+        <source>Apply</source>
+        <translation>应用</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>取消</translation>
+    </message>
+    <message>
+        <source>Restore Defaults</source>
+        <translation>恢复默认</translation>
+    </message>
+</context>
+<context>
+    <name>qltfs::app::AboutDialog</name>
+    <message>
+        <source>About QLTOTapeMan</source>
+        <translation>关于 QLTOTapeMan</translation>
+    </message>
+    <message>
+        <source>About</source>
+        <translation>关于</translation>
+    </message>
+    <message>
+        <source>License</source>
+        <translation>许可证</translation>
+    </message>
+    <message>
+        <source>Credits</source>
+        <translation>致谢</translation>
+    </message>
+    <message>
+        <source>System</source>
+        <translation>系统</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>关闭</translation>
+    </message>
+</context>
+</TS>
