@@ -13,7 +13,6 @@ find_package(Qt6 REQUIRED COMPONENTS
     Widgets
     Concurrent
     LinguistTools
-    Charts
 )
 
 set(APP_SOURCES
@@ -86,12 +85,11 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 
 # Link libraries
 target_link_libraries(${PROJECT_NAME} PRIVATE
-    libqltfs
+    qltfs
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
     Qt6::Concurrent
-    Qt6::Charts
 )
 
 # Set output directory

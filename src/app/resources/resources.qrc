@@ -3,26 +3,27 @@
 
  Copyright (c) 2026 Jeffrey ZHU (zhxsh1225@gmail.com)
  https://github.com/Gypsop/QLTOTapeMan
+ 
+ Note: Icon files should be added to the icons/ directory.
+ Until then, the application will use Qt standard icons or placeholders.
+ Required icons: app.png, tape.png, connect.png, disconnect.png, refresh.png,
+                 write.png, read.png, eject.png, format.png, settings.png,
+                 folder.png, file.png
 -->
 <RCC>
     <qresource prefix="/">
-        <!-- Icons -->
-        <file>icons/app.png</file>
-        <file>icons/tape.png</file>
-        <file>icons/connect.png</file>
-        <file>icons/disconnect.png</file>
-        <file>icons/refresh.png</file>
-        <file>icons/write.png</file>
-        <file>icons/read.png</file>
-        <file>icons/eject.png</file>
-        <file>icons/format.png</file>
-        <file>icons/settings.png</file>
-        <file>icons/folder.png</file>
-        <file>icons/file.png</file>
-        
-        <!-- Translations -->
-        <file>translations/QLTOTapeMan_en.qm</file>
-        <file>translations/QLTOTapeMan_zh_CN.qm</file>
-        <file>translations/QLTOTapeMan_zh_TW.qm</file>
+        <!-- Icons will be added when available -->
+        <!-- <file>icons/app.png</file> -->
+        <!-- <file>icons/tape.png</file> -->
+        <!-- <file>icons/connect.png</file> -->
+        <!-- <file>icons/disconnect.png</file> -->
+        <!-- <file>icons/refresh.png</file> -->
+        <!-- <file>icons/write.png</file> -->
+        <!-- <file>icons/read.png</file> -->
+        <!-- <file>icons/eject.png</file> -->
+        <!-- <file>icons/format.png</file> -->
+        <!-- <file>icons/settings.png</file> -->
+        <!-- <file>icons/folder.png</file> -->
+        <!-- <file>icons/file.png</file> -->
     </qresource>
 </RCC>
