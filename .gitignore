@@ -1,174 +1,115 @@
-# =====================================================
-# QLTOTapeMan - Git Ignore Configuration
-# =====================================================
+# QLTOTapeMan .gitignore
 
-# =====================================================
-# 参考项目（原 LTFSCopyGUI 项目代码）
-# =====================================================
-/ref_LTFSCopyGUI/
-/LTFSCopyGUI/
+# =============================================================================
+# 参考项目目录（不需要同步）
+# =============================================================================
+ref_ltfs/
+ref_ltfscmd/
+ref_LTFSCopyGUI/
 
-# =====================================================
-# 编译输出目录
-# =====================================================
+# =============================================================================
+# 编译输出
+# =============================================================================
 # CMake 构建目录
-/build/
-/build-*/
-/cmake-build-*/
-/out/
+build/
+build-*/
+cmake-build-*/
+out/
 
 # Qt Creator 构建目录
-/*-build-*/
+*-build-*/
 
 # Visual Studio 构建目录
-/x64/
-/x86/
-/Debug/
-/Release/
-/RelWithDebInfo/
-/MinSizeRel/
+x64/
+x86/
+Debug/
+Release/
+Win32/
+.vs/
 
-# 二进制输出
-/bin/
-/lib/
-*.exe
-*.dll
+# 编译产物
+*.o
+*.obj
+*.a
+*.lib
 *.so
 *.so.*
 *.dylib
-*.a
-*.lib
+*.dll
+*.exe
+*.app
 *.pdb
 *.ilk
 *.exp
 
-# =====================================================
-# Qt 相关
-# =====================================================
-# Qt Creator 项目文件
+# Qt 生成文件
+moc_*.cpp
+moc_*.h
+ui_*.h
+qrc_*.cpp
+*.qm
+Makefile
+Makefile.*
+
+# =============================================================================
+# IDE 和编辑器
+# =============================================================================
+# Visual Studio
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.ncb
+*.opensdf
+*.sdf
+*.cachefile
+*.VC.db
+*.VC.VC.opendb
+ipch/
+.vs/
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# Qt Creator
 *.pro.user
 *.pro.user.*
 *.qbs.user
 *.qbs.user.*
 *.moc
-moc_*.cpp
-moc_*.h
-qrc_*.cpp
-ui_*.h
-*.qm
 *.autosave
+CMakeLists.txt.user
+CMakeLists.txt.user.*
 
-# Qt Resource 编译
-*.rcc
-
-# =====================================================
-# C++ 编译产物
-# =====================================================
-# 预编译头
-*.gch
-*.pch
-
-# 目标文件
-*.o
-*.obj
-*.ko
-*.elf
-
-# 链接器输出
-*.map
-*.out
-
-# 调试文件
-*.dSYM/
-*.su
-*.idb
-*.pdb
-
-# 内核模块
-*.mod*
-*.cmd
-.tmp_versions/
-modules.order
-Module.symvers
-Mkfile.old
-dkms.conf
-
-# =====================================================
-# IDE 和编辑器配置
-# =====================================================
-# Visual Studio
-.vs/
-*.vcxproj.user
-*.vcxproj.filters
-*.sln.docstates
-*.suo
-*.user
-*.userosscache
-*.sln.cache
-*.VC.db
-*.VC.VC.opendb
-ipch/
-*.opensdf
-*.sdf
-*.cachefile
-*.aps
-*.ncb
-*.opendb
-*.psess
-*.vsp
-*.vspx
-*.sap
-*.e2e
-
-# Visual Studio Code
-.vscode/
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-!.vscode/c_cpp_properties.json
-*.code-workspace
-
-# JetBrains IDEs (CLion, etc.)
+# CLion
 .idea/
-*.iml
-*.ipr
-*.iws
 cmake-build-*/
 
-# Qt Creator
-*.creator.user
-*.creator.user.*
-*.config
-*.creator
-*.files
-*.includes
-*.cflags
-*.cxxflags
-
-# Xcode
+# Xcode (虽然不支持 macOS，但以防万一)
 *.xcodeproj/
 *.xcworkspace/
 xcuserdata/
-*.xccheckout
-*.moved-aside
-*.xcuserstate
 DerivedData/
-*.hmap
-*.ipa
-*.xcpretty.json
-
-# Kate
-.kate-swp
-*.kate-swp
-
-# KDevelop
-*.kdev4
-.kdev4/
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
 
 # Sublime Text
-*.sublime-workspace
 *.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+.netrwhist
 
 # Emacs
 *~
@@ -180,23 +121,29 @@ auto-save-list
 tramp
 .\#*
 
-# Vim
-[._]*.s[a-v][a-z]
-!*.svg
-[._]*.sw[a-p]
-[._]s[a-rt-v][a-z]
-[._]ss[a-gi-z]
-[._]sw[a-p]
-Session.vim
-Sessionx.vim
-.netrwhist
-tags
-[._]*.un~
+# Kate
+.*.kate-swp
+.swp.*
 
-# =====================================================
-# 操作系统生成文件
-# =====================================================
-# macOS
+# =============================================================================
+# 操作系统
+# =============================================================================
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# macOS (虽然不支持，但可能在 mac 上开发)
 .DS_Store
 .AppleDouble
 .LSOverride
@@ -214,21 +161,6 @@ Network Trash Folder
 Temporary Items
 .apdisk
 
-# Windows
-Thumbs.db
-Thumbs.db:encryptable
-ehthumbs.db
-ehthumbs_vista.db
-*.stackdump
-[Dd]esktop.ini
-$RECYCLE.BIN/
-*.cab
-*.msi
-*.msix
-*.msm
-*.msp
-*.lnk
-
 # Linux
 *~
 .fuse_hidden*
@@ -236,116 +168,87 @@ $RECYCLE.BIN/
 .Trash-*
 .nfs*
 
-# =====================================================
-# 包管理器和依赖
-# =====================================================
-# vcpkg
-vcpkg_installed/
+# =============================================================================
+# Qt 相关
+# =============================================================================
+# Qt 自动生成
+*.moc
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+*.qm
 
-# Conan
-conan/
-conanbuildinfo.*
-conaninfo.txt
-conan.lock
-graph_info.json
+# Qt 资源编译
+*.rcc
 
-# =====================================================
-# 测试和覆盖率
-# =====================================================
-/Testing/
-/coverage/
-*.gcov
-*.gcda
-*.gcno
-*.info
-htmlcov/
-.coverage
-.coverage.*
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-.pytest_cache/
-
-# =====================================================
-# 文档生成
-# =====================================================
-/docs/html/
-/docs/latex/
-/docs/xml/
-/docs/man/
-Doxyfile.bak
-doxygen_sqlite3.db
-
-# =====================================================
+# =============================================================================
 # 日志和临时文件
-# =====================================================
+# =============================================================================
 *.log
 *.tmp
 *.temp
 *.bak
 *.backup
-*.swp
-*.swo
-*~
+*.old
+*.orig
 
-# =====================================================
-# 安装包和发布
-# =====================================================
-/installer/
-/package/
-/dist/
-*.dmg
-*.pkg
+# 测试输出
+test-results/
+TestResults/
+coverage/
+
+# =============================================================================
+# 包管理和依赖
+# =============================================================================
+# vcpkg
+vcpkg_installed/
+
+# Conan
+conanbuildinfo.*
+conaninfo.txt
+graph_info.json
+conan.lock
+
+# =============================================================================
+# 文档生成
+# =============================================================================
+# Doxygen
+docs/html/
+docs/latex/
+docs/xml/
+Doxyfile.bak
+
+# =============================================================================
+# 安装和打包
+# =============================================================================
+install/
+_CPack_Packages/
 *.deb
 *.rpm
-*.AppImage
-*.snap
-*.flatpak
-
-# =====================================================
-# 其他
-# =====================================================
-# 压缩包
-*.zip
-*.tar
 *.tar.gz
 *.tar.bz2
 *.tar.xz
-*.7z
-*.rar
+*.zip
+*.nupkg
 
-# 备份文件
-*.orig
-*.old
+# =============================================================================
+# 其他
+# =============================================================================
+# 编译数据库
+compile_commands.json
 
-# 补丁文件
-*.patch
-*.diff
+# 性能分析
+*.prof
+*.gcda
+*.gcno
+*.gcov
 
-# 锁文件
-*.lock
-!package-lock.json
-!yarn.lock
-!Cargo.lock
+# 崩溃转储
+*.dmp
+core
+core.*
 
-# Ctags
-tags
-TAGS
-
-# CScope
-cscope.*
-ncscope.*
-
-# GNU Global
-GTAGS
-GRTAGS
-GPATH
-GSYMS
-
-# =====================================================
-# 项目特定排除
-# =====================================================
 # 私钥和敏感信息
 *.pem
 *.key
@@ -353,17 +256,21 @@ GSYMS
 *.pfx
 privkey.*
 
-# 用户配置（保留模板）
-config.local.*
-!config.local.example.*
+# 用户特定配置
+.env
+.env.local
+*.local
 
-# 本地测试数据
-/testdata/
-/samples/
+# =============================================================================
+# 项目特定
+# =============================================================================
+# 测试磁带镜像
+*.tapeimage
+*.ltfs
 
-# 性能分析
-*.prof
-*.trace
-perf.data
-perf.data.*
+# 配置缓存
+config.cache
 
+# 用户设置
+settings.json
+user_settings.ini
